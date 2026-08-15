@@ -1,7 +1,11 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
-import { RequireAuth } from '@/components/RequireAuth'
+import {
+  LOGIN_PATH,
+  RedirectIfAuthenticated,
+  RequireAuth,
+} from '@/components/routing/AuthGuards'
 import { AppShell } from '@/components/layout/AppShell'
 
 // Halaman dimuat terpisah supaya bundel awal tetap ringan: grafik laporan
@@ -16,9 +20,17 @@ const ReportsPage = lazy(() => import('@/pages/ReportsPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 /**
- * Menambah halaman: daftarkan <Route> di sini dengan path yang sama persis
- * seperti entri di src/components/layout/navigation.ts. Kerangka layar
- * (sidebar, header, skeleton saat memuat) sudah ditangani <AppShell />.
+ * PETA RUTE
+ *
+ * Hanya ada dua wilayah, dan keduanya dijaga di tingkat rute, bukan di dalam
+ * komponen halaman:
+ *
+ *   RedirectIfAuthenticated  halaman masuk, tertutup bagi yang sudah punya sesi
+ *   RequireAuth              seluruh aplikasi, tertutup bagi yang belum masuk
+ *
+ * Menambah halaman: taruh <Route> baru di dalam <AppShell>, dengan path yang
+ * sama persis seperti entri di src/components/layout/navigation.ts. Halaman itu
+ * ikut terlindungi otomatis, tidak perlu menulis pengecekan sesi sendiri.
  */
 export default function App() {
   return (
@@ -26,7 +38,9 @@ export default function App() {
       <BrowserRouter>
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/masuk" element={<LoginPage />} />
+            <Route element={<RedirectIfAuthenticated />}>
+              <Route path={LOGIN_PATH} element={<LoginPage />} />
+            </Route>
 
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>

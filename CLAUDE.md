@@ -126,6 +126,29 @@ lolos di klien tidak memberi akses data apa pun.
 Akun yang berhasil login tetapi tidak terdaftar langsung di-signout, dan halaman
 masuk menampilkan UID-nya supaya bisa dikirim ke pemilik toko.
 
+### Penjagaan rute
+
+Dijaga di tingkat rute, di `src/components/routing/AuthGuards.tsx`. **Halaman
+tidak pernah memeriksa sesi sendiri**, jadi tidak ada halaman yang bisa lupa
+dijaga.
+
+| Gerbang | Menjaga |
+| --- | --- |
+| `RequireAuth` | seluruh aplikasi, memantulkan yang belum masuk ke `/masuk` |
+| `RedirectIfAuthenticated` | `/masuk`, memantulkan yang sudah masuk ke aplikasi |
+
+Selama sesi masih dipulihkan, keduanya menampilkan layar tunggu yang sama. Tanpa
+itu, menyegarkan halaman akan memperlihatkan kedipan form login walaupun sudah
+masuk.
+
+Alamat tujuan disimpan lengkap dengan query dan hash lewat `state.from`, jadi
+tautan dalam seperti `/laporan?periode=bulan-ini` tetap sampai setelah masuk.
+`safeRedirectTarget` menolak nilai yang bukan jalur relatif, supaya state
+navigasi tidak bisa dipakai melempar pengguna ke domain luar.
+
+Tujuan bawaan setelah masuk adalah `AUTH_LANDING`, yaitu layar kasir, bukan
+dashboard: itu pekerjaan yang dibuka puluhan kali sehari.
+
 ## Model data Firestore
 
 Empat koleksi, tanpa subcollection.

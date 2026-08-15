@@ -1,24 +1,36 @@
-import { useState, type FormEvent } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
 import { GoogleLogoIcon, StorefrontIcon } from '@phosphor-icons/react'
 import { authErrorMessage, useAuth } from '@/contexts/AuthContext'
 import { STORE_NAME } from '@/lib/firebase'
 import { Button, ErrorState, TextField } from '@/components/ui'
 import { BrandMark } from '@/components/layout/BrandMark'
 
+/**
+ * Halaman ini tidak memeriksa sesi sama sekali. Pemantulan bagi pengguna yang
+ * sudah masuk ditangani <RedirectIfAuthenticated> di tingkat rute, supaya form
+ * ini tidak pernah sempat tergambar.
+ */
 export default function LoginPage() {
-  const { user, signIn, signInWithGoogle, accessError, clearAccessError } = useAuth()
-  const location = useLocation()
+  const { signIn, signInWithGoogle, accessError, clearAccessError } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [googlePending, setGooglePending] = useState(false)
 
-  if (user) {
-    const from = (location.state as { from?: string } | null)?.from ?? '/kasir'
-    return <Navigate to={from} replace />
-  }
+  /*
+    Kredensial diterima bukan berarti sudah masuk: keanggotaan staf masih
+    diperiksa sesudahnya. Flag pending sengaja tidak direset saat kredensial
+    berhasil, jadi tombolnya tetap berputar sampai aplikasi benar benar terbuka
+    atau penolakan muncul. Tanpa ini ada jeda diam yang bikin kasir menekan
+    tombolnya dua kali.
+  */
+  useEffect(() => {
+    if (accessError) {
+      setSubmitting(false)
+      setGooglePending(false)
+    }
+  }, [accessError])
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -41,7 +53,6 @@ export default function LoginPage() {
       // Menutup jendela Google bukan kesalahan, jadi pesannya sengaja kosong.
       const message = authErrorMessage(caught)
       if (message) setError(message)
-    } finally {
       setGooglePending(false)
     }
   }
