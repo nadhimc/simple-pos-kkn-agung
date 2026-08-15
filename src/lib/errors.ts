@@ -24,6 +24,28 @@ export function firestoreErrorMessage(error: unknown): string {
   }
 }
 
+/**
+ * Khusus kegagalan menyimpan penjualan.
+ *
+ * firestore.rules menolak stok bernilai negatif, jadi kalau barang terakhir
+ * habis terjual lebih dulu di perangkat lain, seluruh batch penjualan ditolak
+ * dengan kode permission-denied. Penolakan itu justru mencegah oversell, tapi
+ * pesan bawaannya menyesatkan kasir, jadi diterjemahkan di sini.
+ */
+export function saleErrorMessage(error: unknown): string {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : ''
+
+  if (import.meta.env.DEV) console.error(error)
+
+  if (code === 'permission-denied') {
+    return 'Transaksi ditolak. Kemungkinan stok salah satu barang sudah habis terjual dari perangkat lain. Periksa sisa stok lalu ulangi.'
+  }
+  return writeErrorMessage(error)
+}
+
 /** Sama seperti di atas, untuk aksi tulis yang gagal. */
 export function writeErrorMessage(error: unknown): string {
   const code =

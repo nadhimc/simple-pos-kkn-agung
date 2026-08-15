@@ -3,7 +3,7 @@ import { Button, Modal, Segmented, TextAreaField, toast } from '@/components/ui'
 import { formatRupiah } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { createSale } from '@/services/sales'
-import { writeErrorMessage } from '@/lib/errors'
+import { saleErrorMessage } from '@/lib/errors'
 import { displayNameOf, useAuth } from '@/contexts/AuthContext'
 import { cartSubtotal, useCart } from './useCart'
 import type { PaymentMethod, Product, Sale } from '@/types'
@@ -94,7 +94,7 @@ export function PaymentModal({
       clear()
       onPaid(sale)
     } catch (caught) {
-      toast.error(writeErrorMessage(caught))
+      toast.error(saleErrorMessage(caught))
       setSubmitting(false)
     }
   }
