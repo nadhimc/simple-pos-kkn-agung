@@ -208,6 +208,37 @@
     background-clip: content-box;
   }
 
+  /*
+    CETAK STRUK
+    Saat window.print() dipanggil, hanya #receipt-print-area yang ikut tercetak.
+    Elemen itu dipindahkan ke pojok kiri atas halaman dan seluruh isi layar
+    lainnya disembunyikan, jadi tidak perlu membuka jendela cetak terpisah.
+  */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+
+    #receipt-print-area,
+    #receipt-print-area * {
+      visibility: visible;
+      color: #000;
+    }
+
+    #receipt-print-area {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      max-width: none;
+      padding: 4mm;
+    }
+
+    @page {
+      margin: 0;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
