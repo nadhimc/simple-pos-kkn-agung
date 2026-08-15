@@ -29,7 +29,7 @@ export function PaymentModal({
   productsById,
   onPaid,
 }: PaymentModalProps) {
-  const { user } = useAuth()
+  const { user, staff } = useAuth()
   const { items, discount, note, setNote, clear } = useCart()
 
   const [method, setMethod] = useState<PaymentMethod>('tunai')
@@ -89,7 +89,7 @@ export function PaymentModal({
         cashReceived: method === 'tunai' ? cashReceived : total,
         note,
         cashierId: user.uid,
-        cashierName: displayNameOf(user),
+        cashierName: displayNameOf(user, staff),
       })
       clear()
       onPaid(sale)

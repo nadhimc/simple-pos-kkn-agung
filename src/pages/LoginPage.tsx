@@ -1,18 +1,19 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { StorefrontIcon } from '@phosphor-icons/react'
+import { GoogleLogoIcon, StorefrontIcon } from '@phosphor-icons/react'
 import { authErrorMessage, useAuth } from '@/contexts/AuthContext'
 import { STORE_NAME } from '@/lib/firebase'
-import { Button, TextField } from '@/components/ui'
+import { Button, ErrorState, TextField } from '@/components/ui'
 import { BrandMark } from '@/components/layout/BrandMark'
 
 export default function LoginPage() {
-  const { user, signIn } = useAuth()
+  const { user, signIn, signInWithGoogle, accessError, clearAccessError } = useAuth()
   const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [googlePending, setGooglePending] = useState(false)
 
   if (user) {
     const from = (location.state as { from?: string } | null)?.from ?? '/kasir'
@@ -28,6 +29,20 @@ export default function LoginPage() {
     } catch (caught) {
       setError(authErrorMessage(caught))
       setSubmitting(false)
+    }
+  }
+
+  async function handleGoogle() {
+    setError('')
+    setGooglePending(true)
+    try {
+      await signInWithGoogle()
+    } catch (caught) {
+      // Menutup jendela Google bukan kesalahan, jadi pesannya sengaja kosong.
+      const message = authErrorMessage(caught)
+      if (message) setError(message)
+    } finally {
+      setGooglePending(false)
     }
   }
 
@@ -79,10 +94,47 @@ export default function LoginPage() {
             Masuk ke kasir
           </h2>
           <p className="mt-1.5 text-sm text-ink-muted">
-            Gunakan akun yang dibuat pemilik toko di Firebase Authentication.
+            Hanya akun yang terdaftar sebagai staf toko yang bisa masuk.
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+          {/*
+            Akun yang lolos Google tetapi bukan staf ditolak di sini, lengkap
+            dengan UID-nya supaya bisa langsung dikirim ke pemilik toko.
+          */}
+          {accessError ? (
+            <ErrorState
+              className="mt-6"
+              title="Akun belum terdaftar"
+              message={accessError}
+              action={
+                <Button variant="secondary" size="sm" onClick={clearAccessError}>
+                  Coba akun lain
+                </Button>
+              }
+            />
+          ) : null}
+
+          <div className="mt-6">
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              loading={googlePending}
+              disabled={submitting}
+              icon={<GoogleLogoIcon size={19} weight="bold" />}
+              onClick={handleGoogle}
+            >
+              Masuk dengan Google
+            </Button>
+          </div>
+
+          <div className="my-6 flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-xs text-ink-subtle">atau pakai email</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <TextField
               label="Email"
               type="email"
@@ -101,14 +153,22 @@ export default function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
               error={error}
             />
-            <Button type="submit" size="lg" fullWidth loading={submitting} className="mt-2">
+            <Button
+              type="submit"
+              size="lg"
+              fullWidth
+              loading={submitting}
+              disabled={googlePending}
+              className="mt-2"
+            >
               Masuk
             </Button>
           </form>
 
-          <p className="mt-8 flex items-center gap-2 text-xs text-ink-subtle">
-            <StorefrontIcon size={14} weight="bold" />
-            Belum punya akun? Tambahkan lewat Firebase Console, menu Authentication.
+          <p className="mt-8 flex items-start gap-2 text-xs text-ink-subtle">
+            <StorefrontIcon size={14} weight="bold" className="mt-0.5 shrink-0" />
+            Akun baru dibuat pemilik toko lewat Firebase Console, lalu didaftarkan ke
+            koleksi staff.
           </p>
         </div>
       </main>

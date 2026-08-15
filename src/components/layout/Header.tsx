@@ -11,7 +11,7 @@ import {
 import { cn } from '@/lib/cn'
 import { useTheme } from '@/hooks/useTheme'
 import { displayNameOf, useAuth } from '@/contexts/AuthContext'
-import { Button, IconButton } from '@/components/ui'
+import { Badge, Button, IconButton } from '@/components/ui'
 import type { NavItem } from './navigation'
 
 interface HeaderProps {
@@ -20,7 +20,7 @@ interface HeaderProps {
 }
 
 function UserMenu() {
-  const { user, signOutUser } = useAuth()
+  const { user, staff, signOutUser } = useAuth()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -56,7 +56,7 @@ function UserMenu() {
       >
         <UserCircleIcon size={26} weight="regular" className="shrink-0" />
         <span className="hidden max-w-32 truncate text-sm font-medium sm:block">
-          {displayNameOf(user)}
+          {displayNameOf(user, staff)}
         </span>
       </button>
 
@@ -66,7 +66,16 @@ function UserMenu() {
           className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-panel border border-border bg-surface shadow-e3"
         >
           <div className="border-b border-border px-4 py-3">
-            <p className="truncate text-sm font-medium text-ink">{displayNameOf(user)}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="truncate text-sm font-medium text-ink">
+                {displayNameOf(user, staff)}
+              </p>
+              {staff ? (
+                <Badge tone="accent" className="capitalize">
+                  {staff.role}
+                </Badge>
+              ) : null}
+            </div>
             <p className="truncate text-xs text-ink-muted">{user?.email}</p>
           </div>
           <button

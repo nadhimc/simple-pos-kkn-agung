@@ -103,9 +103,35 @@ untuk dua deret atau lebih, dan identitas deret tidak boleh hanya lewat warna.
 Grafik laba rugi tetap berbentuk tabel karena laporan keuangan dibaca baris demi
 baris.
 
+## Kontrol akses
+
+Ada dua metode masuk: email/password dan Google. Keduanya hanya membuktikan
+**siapa** orangnya, bukan bahwa dia orang toko. Sejak Google aktif, siapa pun
+pemilik akun Google bisa lolos tahap autentikasi.
+
+Yang memisahkan staf dari orang asing adalah keberadaan dokumen `staff/{uid}`.
+`firestore.rules` memeriksanya lewat `isStaff()` pada setiap koleksi, dan
+`AuthContext` memeriksa hal yang sama untuk pengalaman pengguna.
+
+**Aplikasi tidak pernah menulis ke koleksi `staff`** (`allow write: if false`).
+Dokumen staf hanya dibuat di Firebase Console, supaya tidak ada jalan bagi siapa
+pun untuk mendaftarkan dirinya sendiri. Jangan menambahkan halaman manajemen staf
+tanpa memikirkan ulang aturan ini.
+
+Pemeriksaan staf di klien sengaja **gagal terbuka** saat jaringan bermasalah:
+kasir tidak boleh terlempar keluar di tengah jualan. Itu aman karena
+`firestore.rules` tetap memeriksa keanggotaan yang sama di sisi server, jadi
+lolos di klien tidak memberi akses data apa pun.
+
+Akun yang berhasil login tetapi tidak terdaftar langsung di-signout, dan halaman
+masuk menampilkan UID-nya supaya bisa dikirim ke pemilik toko.
+
 ## Model data Firestore
 
-Tiga koleksi, tanpa subcollection.
+Empat koleksi, tanpa subcollection.
+
+**`staff`** — id dokumen adalah `uid` dari Firebase Auth. Isinya `name, email,
+role` (`pemilik` atau `kasir`). Dibuat manual lewat Console.
 
 **`products`** — `name, sku, category, costPrice, sellPrice, stock, unit,
 minStock, createdAt, updatedAt`
@@ -181,6 +207,15 @@ sendiri.
   `saleErrorMessage` pada `src/lib/errors.ts`.
 - Tulisan yang dibuat saat offline baru diperiksa Security Rules ketika sinkron.
   Kalau ditolak, perubahannya di-rollback diam diam.
+- Login Google memakai `signInWithPopup` dengan `prompt: 'select_account'`. Satu
+  perangkat kasir sering dipakai bergantian, dan memakai sesi Google terakhir
+  secara diam diam membuat struk tercatat atas nama orang yang salah.
+- Menutup jendela popup Google memunculkan kode `auth/popup-closed-by-user`. Itu
+  bukan kesalahan, jadi `authErrorMessage` sengaja mengembalikan string kosong
+  dan pemanggilnya tidak menampilkan apa apa.
+- Domain produksi harus didaftarkan di Firebase Console, menu Authentication,
+  Settings, Authorized domains. Kalau tidak, login Google gagal dengan
+  `auth/unauthorized-domain` walaupun di localhost berhasil.
 - Cetak struk mengisolasi `#receipt-print-area` lewat `@media print` di
   `index.css`, bukan membuka jendela baru, supaya jalan di printer termal murah.
 - Enter di kolom pencarian kasir menambahkan satu satunya hasil yang cocok. Itu
