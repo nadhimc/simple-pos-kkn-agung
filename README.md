@@ -155,4 +155,10 @@ Authorized domains**, kalau tidak, login akan ditolak dari domain produksi.
 | `npm run lint` | Menjalankan oxlint |
 | `npm run seed -- --help` | Pilihan skrip pengisi data awal |
 
-Catatan pengembangan lebih lengkap ada di [CLAUDE.md](./CLAUDE.md).
+## Dokumentasi
+
+| Berkas | Isi |
+| --- | --- |
+| [docs/](./docs/README.md) | Dokumentasi teknis lengkap: arsitektur, model data, alur, diagram |
+| [CLAUDE.md](./CLAUDE.md) | Aturan kerja saat mengubah kode |
+| [firestore.rules](./firestore.rules) | Sumber kebenaran keamanan |

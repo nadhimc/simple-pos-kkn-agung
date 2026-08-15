@@ -2,6 +2,10 @@
 
 Panduan kerja untuk Claude Code di repositori ini. Baca sebelum mengubah kode.
 
+Dokumentasi teknis lengkap beserta diagramnya ada di [`docs/`](./docs/README.md).
+Berkas ini berisi aturan kerja; `docs/` berisi penjelasan cara kerja. Kalau
+keduanya bertentangan, `docs/` yang harus diperbarui mengikuti kode.
+
 ## Apa ini
 
 Aplikasi POS sederhana untuk UMKM: kasir, stok, beban operasional, dan laporan
