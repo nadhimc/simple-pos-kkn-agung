@@ -1,0 +1,59 @@
+rules_version = '2';
+
+// Konfigurasi Firebase Web ikut ter-bundle ke browser, jadi berkas inilah satu
+// satunya lapisan yang benar benar menjaga data. Jangan pernah mengembalikan
+// aturan ini ke mode terbuka.
+//
+// Terapkan dengan: firebase deploy --only firestore:rules
+// atau tempel isinya di Firebase Console > Firestore Database > Rules.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isPositiveNumber(value) {
+      return value is number && value >= 0;
+    }
+
+    // Produk dan stok.
+    match /products/{productId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && isPositiveNumber(request.resource.data.costPrice)
+        && isPositiveNumber(request.resource.data.sellPrice)
+        && isPositiveNumber(request.resource.data.stock);
+      allow delete: if signedIn();
+    }
+
+    // Penjualan. Dokumen tidak boleh diubah setelah dibuat supaya laba historis
+    // tidak bisa dikoreksi diam diam. Pembatalan dilakukan dengan menghapus
+    // dokumen sekaligus mengembalikan stok, bukan dengan mengedit angkanya.
+    match /sales/{saleId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.cashierId == request.auth.uid
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && isPositiveNumber(request.resource.data.total)
+        && isPositiveNumber(request.resource.data.totalCost);
+      allow update: if false;
+      allow delete: if signedIn();
+    }
+
+    // Beban operasional.
+    match /expenses/{expenseId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.description is string
+        && isPositiveNumber(request.resource.data.amount);
+      allow delete: if signedIn();
+    }
+
+    // Koleksi lain tidak diberi aturan, sehingga otomatis ditolak Firestore.
+  }
+}
