@@ -114,9 +114,17 @@ Yang memisahkan staf dari orang asing adalah keberadaan dokumen `staff/{uid}`.
 `AuthContext` memeriksa hal yang sama untuk pengalaman pengguna.
 
 **Aplikasi tidak pernah menulis ke koleksi `staff`** (`allow write: if false`).
-Dokumen staf hanya dibuat di Firebase Console, supaya tidak ada jalan bagi siapa
+Dokumen staf hanya dibuat dari luar aplikasi, supaya tidak ada jalan bagi siapa
 pun untuk mendaftarkan dirinya sendiri. Jangan menambahkan halaman manajemen staf
 tanpa memikirkan ulang aturan ini.
+
+Jalurnya ada dua: Firebase Console, atau `scripts/seed.mjs` yang memakai Admin
+SDK. Admin SDK melewati Security Rules by design, jadi kunci service account-nya
+setara akses penuh ke seluruh proyek. Kunci itu masuk `.gitignore` dan tidak
+boleh dipakai di kode aplikasi, hanya di skrip yang dijalankan manual.
+
+Skrip seed tidak pernah menulis ke koleksi `sales`. Penjualan palsu akan merusak
+laporan laba rugi yang sebenarnya.
 
 Pemeriksaan staf di klien sengaja **gagal terbuka** saat jaringan bermasalah:
 kasir tidak boleh terlempar keluar di tengah jualan. Itu aman karena

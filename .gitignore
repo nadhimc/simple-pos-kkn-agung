@@ -18,6 +18,12 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Kunci service account Firebase. Memberi akses penuh ke seluruh data proyek
+# dan melewati Security Rules, jadi tidak pernah boleh masuk repositori.
+serviceAccountKey.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+
 # Editor
 .vscode/*
 !.vscode/extensions.json

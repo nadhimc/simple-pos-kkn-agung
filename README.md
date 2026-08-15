@@ -24,24 +24,53 @@ Konfigurasi di `.env.example` sudah mengarah ke proyek `simple-pos-kkn-agung`
 1. **Authentication → Sign-in method**: aktifkan **Email/Password** dan
    **Google**. Provider Google hanya perlu satu email dukungan; tidak ada client
    ID yang perlu ditempel ke kode.
-2. **Firestore Database**: buat database, lalu terapkan aturan keamanannya.
+2. **Firestore Database**: pastikan database sudah dibuat, lalu terapkan aturan
+   keamanannya. Isi aturannya sudah lengkap di `firestore.rules`, tinggal
+   dikirim ke Firebase.
 
    ```bash
-   npx firebase-tools deploy --only firestore:rules
+   npx -y firebase-tools login
+   npx -y firebase-tools use simple-pos-kkn-agung
+   npx -y firebase-tools deploy --only firestore:rules
    ```
 
-   Atau salin isi `firestore.rules` ke Firebase Console → Firestore → Rules.
+   Kalau tidak mau memakai CLI, buka Firebase Console → Firestore Database →
+   Rules, hapus seluruh isinya, tempel isi `firestore.rules`, lalu **Publish**.
 
-3. **Daftarkan diri Anda sebagai staf pertama.** Ini wajib, dan harus manual.
+   Aturan bawaan Firestore yang baru dibuat menolak semua akses (mode terkunci)
+   atau membuka semuanya selama 30 hari (mode uji). Keduanya tidak bisa dipakai
+   aplikasi ini, jadi langkah ini tidak boleh dilewati.
 
-   Login sekali ke aplikasi dengan akun Google Anda. Aplikasi akan menolak masuk
-   dan menampilkan UID Anda. Salin UID itu, lalu di Firestore buat dokumen:
+3. **Daftarkan diri Anda sebagai staf pertama.**
+
+   Koleksi `staff` sengaja tidak bisa ditulis dari aplikasi, supaya tidak ada
+   orang yang bisa mendaftarkan dirinya sendiri. Jadi staf pertama harus dibuat
+   dari luar. Ada dua cara.
+
+   **Cara cepat, pakai skrip.** Unduh kunci di Firebase Console → Project
+   settings → Service accounts → Generate new private key, simpan sebagai
+   `serviceAccountKey.json` di akar proyek (sudah masuk `.gitignore`), lalu:
+
+   ```bash
+   npm run seed -- --email pemilik@toko.id --password rahasia123 --name "Bu Sri"
+   ```
+
+   Tambahkan `--with-products` kalau ingin sekalian diisi sepuluh produk contoh
+   untuk mencoba aplikasinya. Produk contoh boleh dihapus kapan saja dari
+   halaman Produk & Stok.
+
+   Kalau akunnya mau pakai Google, masuk sekali dulu ke aplikasi (akan ditolak,
+   tapi akunnya sudah tercipta di Authentication), lalu jalankan skrip tanpa
+   `--password`.
+
+   **Cara manual, tanpa skrip.** Masuk sekali ke aplikasi. Aplikasi menolak dan
+   menampilkan UID Anda. Salin UID itu, lalu di Firestore buat dokumen:
 
    - Koleksi: `staff`
-   - ID dokumen: **UID tadi** (bukan ID otomatis)
+   - ID dokumen: **UID tadi**, bukan ID otomatis
    - Field: `name` (string), `email` (string), `role` (string, isi `pemilik`)
 
-   Login lagi, dan Anda masuk.
+   Masuk lagi, dan Anda diterima.
 
 > Nilai `VITE_FIREBASE_*` memang ikut ter-bundle ke JavaScript browser, dan itu
 > normal untuk aplikasi Firebase. Yang menjaga data adalah Security Rules.
@@ -51,12 +80,48 @@ Konfigurasi di `.env.example` sudah mengarah ke proyek `simple-pos-kkn-agung`
 > tidaknya membaca data toko adalah dokumen `staff/{uid}`. Karena itu langkah 2
 > dan 3 tidak boleh dilewati.
 
+### Koleksi yang dipakai
+
+Firestore membuat koleksi otomatis saat dokumen pertamanya ditulis, jadi tidak
+ada yang perlu dibuat manual selain `staff`.
+
+| Koleksi | Dibuat oleh | Kapan |
+| --- | --- | --- |
+| `staff` | skrip seed atau Console | wajib, sebelum bisa masuk |
+| `products` | halaman Produk & Stok | saat produk pertama ditambahkan |
+| `sales` | layar Kasir | saat transaksi pertama diselesaikan |
+| `expenses` | halaman Beban Operasional | saat beban pertama dicatat |
+
+Skrip seed tidak pernah menulis ke `sales`. Data penjualan palsu akan merusak
+laporan laba rugi yang sebenarnya.
+
+### Memastikan aturannya benar
+
+Setelah Publish, buka Firebase Console → Firestore → Rules → **Rules Playground**
+dan jalankan empat kasus ini. Kalau hasilnya sesuai kolom terakhir, aturannya
+sudah terpasang dengan benar.
+
+| Simulation type | Location | Authenticated | Hasil yang benar |
+| --- | --- | --- | --- |
+| get | `/products/apa_saja` | tidak | Denied |
+| get | `/products/apa_saja` | ya, UID acak | Denied |
+| get | `/products/apa_saja` | ya, UID staf Anda | Allowed |
+| get | `/staff/UID_ORANG_LAIN` | ya, UID staf Anda | Denied |
+
+Baris kedua adalah yang paling penting: itu membuktikan sekadar punya akun
+Google tidak cukup untuk membaca data toko Anda.
+
 ## Menambah kasir baru
 
-1. Kasir mencoba masuk dengan akun Google atau email/password-nya. Aplikasi
-   menolak dan menampilkan UID akun itu.
-2. Kasir mengirimkan UID tersebut ke Anda.
-3. Anda buat dokumen `staff/{uid}` dengan `role` berisi `kasir`.
+Pakai skrip yang sama:
+
+```bash
+npm run seed -- --email kasir@toko.id --role kasir --name "Andi"
+```
+
+Atau tanpa skrip: kasir mencoba masuk, aplikasi menolak dan menampilkan UID-nya,
+kasir mengirimkan UID itu ke Anda, lalu Anda buat dokumen `staff/{uid}` dengan
+`role` berisi `kasir`.
 
 Mencabut akses cukup dengan menghapus dokumen `staff` miliknya. Riwayat transaksi
 yang sudah tercatat tidak terpengaruh, karena setiap struk menyimpan nama
@@ -88,5 +153,6 @@ Authorized domains**, kalau tidak, login akan ditolak dari domain produksi.
 | `npm run build` | Type check dan build produksi |
 | `npm run preview` | Meninjau hasil build |
 | `npm run lint` | Menjalankan oxlint |
+| `npm run seed -- --help` | Pilihan skrip pengisi data awal |
 
 Catatan pengembangan lebih lengkap ada di [CLAUDE.md](./CLAUDE.md).
