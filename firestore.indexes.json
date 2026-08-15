@@ -1,13 +1,5 @@
 {
-  "indexes": [
-    {
-      "collectionGroup": "products",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "archived", "order": "ASCENDING" },
-        { "fieldPath": "name", "order": "ASCENDING" }
-      ]
-    }
-  ],
+  "comment": "Seluruh kueri aplikasi memakai satu field untuk filter sekaligus urutan (produk: name, penjualan: createdAt, beban: date), sehingga Firestore sudah menyediakan indeksnya secara otomatis. Tambahkan indeks komposit di sini hanya jika ada kueri baru yang memfilter dan mengurutkan pada field berbeda.",
+  "indexes": [],
   "fieldOverrides": []
 }

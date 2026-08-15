@@ -18,12 +18,15 @@ export interface Product {
   unit: string
   /** Ambang peringatan stok menipis. */
   minStock: number
-  archived: boolean
   createdAt: Date
   updatedAt: Date
 }
 
-export type ProductDraft = Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'archived'>
+/**
+ * Produk boleh dihapus permanen: setiap baris penjualan menyimpan salinan nama
+ * dan harganya sendiri, jadi riwayat dan laba lama tetap utuh.
+ */
+export type ProductDraft = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>
 
 /**
  * Baris penjualan menyimpan salinan harga jual DAN harga modal saat transaksi
