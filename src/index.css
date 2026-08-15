@@ -54,6 +54,21 @@
   --sidebar-active-bg: #1f3a30;
   --sidebar-active-bar: #34d399;
 
+  /*
+    WARNA GRAFIK
+    Dua slot kategorikal, urutannya tetap: slot 1 selalu omzet, slot 2 selalu
+    laba. Warna mengikuti entitas, bukan peringkat, jadi mengganti periode tidak
+    pernah menukar warna deret.
+
+    Kedua pasangan sudah lolos pemeriksaan validator untuk rentang lightness,
+    chroma, keterpisahan buta warna, dan kontras terhadap permukaan masing
+    masing mode. Jangan mengganti nilainya tanpa menjalankan validator lagi.
+  */
+  --chart-1: #047857;
+  --chart-2: #2a78d6;
+  --chart-grid: #e6e6ea;
+  --chart-axis: #b8b8c0;
+
   /* Bayangan diberi rona sesuai latar, tidak pernah hitam murni. */
   --shadow-sm: 0 1px 2px 0 rgb(24 24 27 / 0.05);
   --shadow-md: 0 4px 12px -2px rgb(24 24 27 / 0.08), 0 2px 4px -2px rgb(24 24 27 / 0.05);
@@ -99,6 +114,12 @@
   --sidebar-ink-active: #fafafa;
   --sidebar-active-bg: #1c342b;
   --sidebar-active-bar: #34d399;
+
+  /* Langkah gelap dipilih ulang untuk permukaan gelap, bukan sekadar dibalik. */
+  --chart-1: #0da271;
+  --chart-2: #3987e5;
+  --chart-grid: #2b2b33;
+  --chart-axis: #4a4a55;
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
   --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
