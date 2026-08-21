@@ -59,6 +59,10 @@ flowchart LR
 
 **Modal barang diakui saat barang TERJUAL, bukan saat dibeli.**
 
+Untuk usaha yang mengolah bahan sendiri, aturan ini berlaku satu langkah lebih
+panjang: bahan berubah jadi produk lewat produksi, dan produksi juga bukan
+beban. Lihat [Produksi & HPP](./produksi.md#produksi-bukan-beban).
+
 Kalau pembelian stok juga dicatat sebagai beban, modalnya terhitung dua kali:
 sekali sebagai beban saat kulakan, sekali lagi sebagai HPP saat terjual. Laporan
 akan menunjukkan rugi padahal warungnya untung.

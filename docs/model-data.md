@@ -2,8 +2,11 @@
 
 [← Kembali ke indeks](./README.md)
 
-Empat koleksi di akar, tanpa subcollection. Definisi tipenya ada di
+Enam koleksi di akar, tanpa subcollection. Definisi tipenya ada di
 [`src/types/index.ts`](../src/types/index.ts).
+
+Dua di antaranya, `recipes` dan `productions`, dibahas terpisah di
+[Produksi & HPP](./produksi.md) berikut alasan rancangannya.
 
 ## Diagram relasi
 
@@ -11,6 +14,10 @@ Empat koleksi di akar, tanpa subcollection. Definisi tipenya ada di
 erDiagram
   STAFF ||--o{ SALES : "mencatat"
   STAFF ||--o{ EXPENSES : "mencatat"
+  STAFF ||--o{ PRODUCTIONS : "mencatat"
+  PRODUCTS ||..o{ RECIPE_ITEMS : "bahan dirujuk"
+  RECIPES ||--|{ RECIPE_ITEMS : "memuat"
+  RECIPES ||--o{ PRODUCTIONS : "dipakai"
   PRODUCTS ||..o{ SALE_ITEMS : "disalin saat terjual"
   SALES ||--|{ SALE_ITEMS : "memuat"
 
@@ -24,6 +31,7 @@ erDiagram
 
   PRODUCTS {
     string id PK "id otomatis"
+    string type "bahan atau jadi"
     string name
     string sku "kode atau barcode, boleh kosong"
     string category
@@ -61,6 +69,33 @@ erDiagram
     number sellPrice "SALINAN"
     number costPrice "SALINAN"
     number subtotal
+  }
+
+  RECIPES {
+    string id PK "id otomatis"
+    string productId FK "produk jadi yang dihasilkan"
+    number yieldQty "hasil satu kali produksi"
+    string yieldUnit
+    string note
+  }
+
+  RECIPE_ITEMS {
+    string materialId "referensi lemah ke products"
+    string materialName "SALINAN"
+    number qty
+    string unit "satuan PEMAKAIAN, boleh beda dari satuan stok"
+  }
+
+  PRODUCTIONS {
+    string id PK "id otomatis"
+    string productionNo "PRD-YYMMDD-HHMMSS"
+    string productId FK
+    string recipeId FK "boleh menggantung"
+    number materialCost "HPP satu kali produksi"
+    number yieldQty "hasil nyata"
+    number costPerUnit "HPP per satuan"
+    string operatorId FK
+    timestamp createdAt
   }
 
   EXPENSES {
@@ -134,6 +169,7 @@ pernah cocok.
 
 ```json
 {
+  "type": "jadi",
   "name": "Gula pasir 1 kg",
   "sku": "SB-001",
   "category": "Sembako",
@@ -228,9 +264,11 @@ flowchart LR
   Q2["sales<br/>where createdAt di rentang<br/>orderBy createdAt desc"] --> I2["indeks otomatis"]
   Q3["expenses<br/>where date di rentang<br/>orderBy date desc"] --> I3["indeks otomatis"]
   Q4["staff<br/>getDoc by uid"] --> I4["tanpa indeks"]
+  Q5["recipes<br/>orderBy productName"] --> I5["indeks otomatis"]
+  Q6["productions<br/>where createdAt di rentang<br/>orderBy createdAt desc"] --> I6["indeks otomatis"]
 
   classDef ok fill:#047857,stroke:#047857,color:#ffffff
-  class I1,I2,I3,I4 ok
+  class I1,I2,I3,I4,I5,I6 ok
 ```
 
 Seluruh kueri memfilter dan mengurutkan pada **field yang sama**, sehingga
@@ -246,6 +284,7 @@ sengaja kosong.
 
 | Tidak ada | Kenapa |
 | --- | --- |
+| Harga di dalam `recipes` | HPP sengaja dihitung ulang dari harga bahan terkini, lihat [Produksi & HPP](./produksi.md#kenapa-resep-tidak-menyimpan-harga) |
 | Koleksi `stockMovements` | Riwayat stok per pergerakan menambah kerumitan yang tidak dipakai warung satu gerai |
 | Field `archived` pada produk | Hapus permanen sudah aman karena riwayat menyimpan salinan |
 | Subcollection `sales/{id}/items` | Item selalu dibaca bersama induknya, jadi array lebih murah dan atomik |

@@ -71,6 +71,7 @@ flowchart TD
   subgraph features["features/ — komponen khusus domain"]
     F1["cashier/<br/>CartPanel, PaymentModal, useCart"]
     F2["products/<br/>ProductFormModal, StockModal"]
+    F5["recipes/<br/>RecipeFormModal, ProductionModal"]
     F3["sales/ReceiptModal"]
     F4["dashboard/, expenses/"]
   end
@@ -82,12 +83,12 @@ flowchart TD
   end
 
   subgraph logic["hooks/ dan lib/ — logika tanpa tampilan"]
-    H["useProducts, usePeriod, useTheme"]
-    L["profit.ts, format.ts,<br/>errors.ts, cn.ts"]
+    H["useProducts, useRecipes,<br/>useProductions, usePeriod, useTheme"]
+    L["profit.ts, hpp.ts, units.ts,<br/>format.ts, errors.ts, cn.ts"]
   end
 
   subgraph data["services/ — satu satunya pintu ke Firestore"]
-    S["products.ts, sales.ts,<br/>expenses.ts, staff.ts"]
+    S["products.ts, sales.ts, expenses.ts,<br/>recipes.ts, productions.ts, staff.ts"]
   end
 
   FB[("Firebase SDK<br/>lib/firebase.ts")]

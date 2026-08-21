@@ -161,15 +161,56 @@ navigasi tidak bisa dipakai melempar pengguna ke domain luar.
 Tujuan bawaan setelah masuk adalah `AUTH_LANDING`, yaitu layar kasir, bukan
 dashboard: itu pekerjaan yang dibuka puluhan kali sehari.
 
+## Produksi dan HPP
+
+Usaha ini mengolah bahan jadi produk sendiri, jadi stok punya dua jenis:
+
+- **`type: 'bahan'`** tidak pernah muncul di kasir dan tidak punya harga jual.
+- **`type: 'jadi'`** dijual di kasir, mencakup barang kulakan maupun hasil olahan.
+
+Dokumen lama tanpa field `type` dibaca sebagai `jadi`, jadi tidak ada migrasi.
+
+**Resep tidak menyimpan harga sama sekali.** HPP dihitung ulang dari harga bahan
+terkini setiap kali ditampilkan, lewat `computeHpp` di `src/lib/hpp.ts`. Itulah
+gunanya: harga kulakan naik, seluruh HPP ikut menyesuaikan tanpa ada yang perlu
+diperbarui manual. Riwayat produksi sebaliknya **menyimpan** salinan harga,
+karena HPP historis tidak boleh berubah.
+
+Resep memakai satuan pemakaian (gram) sementara stok dibeli per satuan pembelian
+(kg). Konversinya ada di `src/lib/units.ts`, hanya boleh di dalam dimensi yang
+sama. `convert` mengembalikan `null` untuk dimensi berbeda, dan pemanggilnya
+wajib menangani itu, jangan sampai menghasilkan angka salah diam diam.
+
+**Produksi bukan beban.** Ia memindahkan nilai dari persediaan bahan ke
+persediaan barang jadi. Modal baru diakui sebagai HPP saat produknya terjual.
+Mencatatnya sebagai beban menghitung modal dua kali.
+
+Harga modal produk jadi setelah produksi memakai **rata rata tertimbang**
+(`blendedCostPrice`), bukan ditimpa, supaya sisa stok lama tidak ikut dinilai
+ulang dengan harga baru.
+
+HPP saat ini hanya mencakup **biaya bahan baku**. Tenaga kerja dan overhead
+masuk Beban Operasional, bukan diserap ke dalam HPP.
+
+Penjelasan lengkap beserta diagramnya di [`docs/produksi.md`](./docs/produksi.md).
+
 ## Model data Firestore
 
-Empat koleksi, tanpa subcollection.
+Enam koleksi, tanpa subcollection.
 
 **`staff`** — id dokumen adalah `uid` dari Firebase Auth. Isinya `name, email,
 role` (`pemilik` atau `kasir`). Dibuat manual lewat Console.
 
-**`products`** — `name, sku, category, costPrice, sellPrice, stock, unit,
+**`products`** — `type, name, sku, category, costPrice, sellPrice, stock, unit,
 minStock, createdAt, updatedAt`
+
+**`recipes`** — `productId, productName, items[], yieldQty, yieldUnit, note,
+createdAt, updatedAt`. `items[]` berisi `materialId, materialName, qty, unit`
+tanpa harga.
+
+**`productions`** — `productionNo, productId, productName, recipeId, items[],
+materialCost, yieldQty, yieldUnit, costPerUnit, operatorId, operatorName, note,
+createdAt`. `items[]` menyimpan salinan harga saat produksi.
 
 **`sales`** — `invoiceNo, items[], subtotal, discount, total, totalCost,
 grossProfit, paymentMethod, cashReceived, change, note, cashierId, cashierName,
@@ -221,6 +262,11 @@ satu tab dan laporan di tab lain.
 sementara penjualan terus jalan; mengirim nilai stok dari form akan menghapus
 penjualan yang terjadi di sela itu. Stok hanya berubah lewat `addStock`,
 `setStock`, penjualan, atau pembatalan penjualan.
+
+**Dokumen `productions` tidak boleh diedit**, sama seperti `sales`. Koreksi
+dilakukan dengan membatalkan produksi, yang mengembalikan stok bahan sekaligus
+menarik produk jadi. Harga modal tidak ikut dikembalikan, karena rata rata
+tertimbang tidak bisa dibalik tanpa menyimpan riwayat nilainya.
 
 **Dokumen `sales` tidak boleh diedit** (dikunci di `firestore.rules`). Koreksi
 dilakukan dengan membatalkan struk lalu input ulang, supaya laba historis tidak

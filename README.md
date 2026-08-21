@@ -89,6 +89,8 @@ ada yang perlu dibuat manual selain `staff`.
 | --- | --- | --- |
 | `staff` | skrip seed atau Console | wajib, sebelum bisa masuk |
 | `products` | halaman Produk & Stok | saat produk pertama ditambahkan |
+| `recipes` | halaman Resep & HPP | saat resep pertama disimpan |
+| `productions` | halaman Resep & HPP | saat produksi pertama dicatat |
 | `sales` | layar Kasir | saat transaksi pertama diselesaikan |
 | `expenses` | halaman Beban Operasional | saat beban pertama dicatat |
 
@@ -138,11 +140,16 @@ Authorized domains**, kalau tidak, login akan ditolak dari domain produksi.
 ## Cara pakai singkat
 
 1. **Produk & Stok** — masukkan barang beserta harga modal dan harga jual. Harga
-   modal wajib benar, karena dari sanalah laba dihitung.
-2. **Kasir** — pilih barang, tekan Bayar, cetak struk. Stok berkurang otomatis.
-3. **Beban Operasional** — catat sewa, listrik, gaji, dan pengeluaran rutin lain.
-   Pembelian stok tidak dicatat di sini.
-4. **Laba Rugi** — lihat omzet, HPP, laba kotor, beban, dan laba bersih per
+   modal wajib benar, karena dari sanalah laba dihitung. Pilih jenisnya: **bahan
+   baku** untuk yang dipakai produksi, **barang jadi** untuk yang dijual.
+2. **Resep & HPP** — untuk produk olahan seperti cenil atau klepon, susun
+   resepnya dari bahan baku beserta takarannya. Sistem mengambil harga dari stok
+   dan menghitung HPP per pcs sendiri. Tekan Produksi untuk mencatat hasil
+   masak: stok bahan berkurang, stok produk jadi bertambah.
+3. **Kasir** — pilih barang, tekan Bayar, cetak struk. Stok berkurang otomatis.
+4. **Beban Operasional** — catat sewa, listrik, gaji, dan pengeluaran rutin lain.
+   Pembelian stok maupun produksi tidak dicatat di sini.
+5. **Laba Rugi** — lihat omzet, HPP, laba kotor, beban, dan laba bersih per
    periode. Bisa diunduh sebagai CSV.
 
 ## Perintah
