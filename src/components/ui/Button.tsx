@@ -34,6 +34,11 @@ export function Button({
   loading = false,
   icon,
   fullWidth = false,
+  // Default HTML untuk <button> di dalam <form> adalah submit. Tanpa default
+  // eksplisit di sini, setiap tombol biasa di dalam form (misalnya "Tambah
+  // bahan" pada form resep) akan mengirim formnya. Mengirim form harus jadi
+  // pilihan sadar, jadi pemanggil yang butuh wajib menulis type="submit".
+  type = 'button',
   className,
   children,
   disabled,
@@ -41,6 +46,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
+      type={type}
       // `whitespace-nowrap` menjaga label tetap satu baris: tombol yang labelnya
       // membungkus ke baris kedua adalah tombol yang rusak.
       className={cn(
@@ -82,12 +88,15 @@ export function IconButton({
   variant = 'ghost',
   size = 'md',
   label,
+  // Alasannya sama seperti Button di atas.
+  type = 'button',
   className,
   children,
   ...props
 }: IconButtonProps) {
   return (
     <button
+      type={type}
       aria-label={label}
       title={label}
       className={cn(
