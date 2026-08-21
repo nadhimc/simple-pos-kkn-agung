@@ -1,7 +1,8 @@
 # Warungku POS
 
-Aplikasi kasir dan pembukuan sederhana untuk UMKM. Empat hal saja: kasir, stok,
-beban operasional, dan laporan laba rugi.
+Aplikasi kasir dan pembukuan sederhana untuk UMKM produsen. Kasir, stok bahan
+baku dan barang jadi, perhitungan HPP produk olahan, beban operasional, dan
+laporan laba rugi.
 
 React + Vite + TypeScript + Tailwind v4, dengan Firebase sebagai satu satunya
 backend. Tanpa server sendiri, jadi bisa berjalan di paket gratis Vercel dan
@@ -55,8 +56,10 @@ Konfigurasi di `.env.example` sudah mengarah ke proyek `simple-pos-kkn-agung`
    npm run seed -- --email pemilik@toko.id --password rahasia123 --name "Bu Sri"
    ```
 
-   Tambahkan `--with-products` kalau ingin sekalian diisi sepuluh produk contoh
-   untuk mencoba aplikasinya. Produk contoh boleh dihapus kapan saja dari
+   Tambahkan `--with-products` kalau ingin sekalian diisi contoh isi: sembilan
+   bahan baku (gula merah, tepung tapioka, kelapa parut, dan lainnya) dan
+   sembilan barang jadi, termasuk Cenil dan Klepon yang harga modalnya nol
+   sampai produksi pertama dijalankan. Semuanya boleh dihapus kapan saja dari
    halaman Produk & Stok.
 
    Kalau akunnya mau pakai Google, masuk sekali dulu ke aplikasi (akan ditolak,
