@@ -14,7 +14,7 @@ import {
   type QueryDocumentSnapshot,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import type { Product, ProductDraft } from '@/types'
+import type { Product, ProductDraft, ProductType } from '@/types'
 
 export const productsRef = collection(db, 'products')
 
@@ -28,6 +28,9 @@ export function mapProduct(snapshot: QueryDocumentSnapshot<DocumentData>): Produ
   return {
     id: snapshot.id,
     name: data.name ?? '',
+    // Dokumen lama dibuat sebelum ada bahan baku dan tidak punya field ini.
+    // Bawaannya barang jadi, karena itulah satu satunya jenis yang ada dulu.
+    type: (data.type === 'bahan' ? 'bahan' : 'jadi') as ProductType,
     sku: data.sku ?? '',
     category: data.category ?? 'Umum',
     costPrice: data.costPrice ?? 0,

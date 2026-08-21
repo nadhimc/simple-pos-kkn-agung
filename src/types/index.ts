@@ -3,9 +3,18 @@
  * karena rupiah tidak lagi memakai pecahan desimal di transaksi ritel.
  */
 
+/**
+ * Bahan baku tidak pernah muncul di layar kasir. Ia hanya dipakai lewat resep
+ * untuk memproduksi barang jadi. Barang jadi mencakup dua hal sekaligus:
+ * barang dagangan yang dibeli lalu dijual apa adanya, dan hasil produksi
+ * sendiri yang harga modalnya datang dari perhitungan HPP.
+ */
+export type ProductType = 'bahan' | 'jadi'
+
 export interface Product {
   id: string
   name: string
+  type: ProductType
   /** Kode/barcode opsional, dipakai untuk pencarian cepat di kasir. */
   sku: string
   category: string
@@ -27,6 +36,105 @@ export interface Product {
  * dan harganya sendiri, jadi riwayat dan laba lama tetap utuh.
  */
 export type ProductDraft = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>
+
+/* ------------------------------------------------------------------ resep */
+
+/**
+ * Satu baris bahan dalam resep. `unit` adalah satuan PEMAKAIAN, yang boleh
+ * berbeda dari satuan stok bahannya: resep menulis 100 gram sementara gula
+ * disimpan per kg. Konversinya ditangani src/lib/units.ts.
+ *
+ * Harga sengaja TIDAK disimpan di sini. Resep selalu memakai harga bahan
+ * terkini, karena gunanya memang untuk menghitung ulang HPP saat harga
+ * kulakan berubah.
+ */
+export interface RecipeItem {
+  materialId: string
+  /** Salinan nama untuk tampilan, supaya daftar resep tidak perlu join. */
+  materialName: string
+  qty: number
+  unit: string
+}
+
+export interface Recipe {
+  id: string
+  /** Produk jadi yang dihasilkan resep ini. */
+  productId: string
+  productName: string
+  items: RecipeItem[]
+  /** Jumlah produk jadi yang dihasilkan satu kali produksi. */
+  yieldQty: number
+  yieldUnit: string
+  note: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type RecipeDraft = Omit<Recipe, 'id' | 'createdAt' | 'updatedAt'>
+
+/* --------------------------------------------------------------- produksi */
+
+/**
+ * Baris pemakaian bahan pada satu produksi yang benar benar dijalankan.
+ * Berbeda dari RecipeItem, baris ini MENYIMPAN harga saat produksi terjadi,
+ * dengan alasan yang sama seperti baris penjualan: HPP historis tidak boleh
+ * berubah ketika harga bahan naik bulan depan.
+ */
+export interface ProductionItem {
+  materialId: string
+  materialName: string
+  qty: number
+  unit: string
+  /** Hasil konversi ke satuan stok bahan, inilah yang dikurangkan dari stok. */
+  qtyInStockUnit: number
+  stockUnit: string
+  /** Salinan harga modal per satuan stok saat produksi. */
+  costPerStockUnit: number
+  /** qtyInStockUnit dikali costPerStockUnit, dibulatkan. */
+  cost: number
+}
+
+export interface Production {
+  id: string
+  productionNo: string
+  productId: string
+  productName: string
+  /** Resep yang dipakai. Boleh menunjuk resep yang sudah dihapus. */
+  recipeId: string
+  items: ProductionItem[]
+  /** Jumlah seluruh biaya bahan, yaitu HPP satu kali produksi. */
+  materialCost: number
+  /** Jumlah produk jadi yang benar benar dihasilkan. */
+  yieldQty: number
+  yieldUnit: string
+  /** materialCost dibagi yieldQty, inilah HPP per pcs. */
+  costPerUnit: number
+  operatorId: string
+  operatorName: string
+  note: string
+  createdAt: Date
+}
+
+/** Hasil hitungan HPP yang belum disimpan, dipakai untuk pratinjau langsung. */
+export interface HppBreakdown {
+  lines: {
+    materialId: string
+    materialName: string
+    qty: number
+    unit: string
+    qtyInStockUnit: number
+    stockUnit: string
+    costPerStockUnit: number
+    cost: number
+    /** Bahan sudah dihapus, atau satuannya tidak bisa dikonversi. */
+    problem: string
+  }[]
+  materialCost: number
+  yieldQty: number
+  costPerUnit: number
+  /** True kalau ada baris bermasalah, sehingga totalnya tidak bisa dipercaya. */
+  hasProblem: boolean
+}
 
 /**
  * Baris penjualan menyimpan salinan harga jual DAN harga modal saat transaksi

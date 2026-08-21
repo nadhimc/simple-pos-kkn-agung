@@ -14,6 +14,7 @@ const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const CashierPage = lazy(() => import('@/pages/CashierPage'))
 const ProductsPage = lazy(() => import('@/pages/ProductsPage'))
+const RecipesPage = lazy(() => import('@/pages/RecipesPage'))
 const TransactionsPage = lazy(() => import('@/pages/TransactionsPage'))
 const ExpensesPage = lazy(() => import('@/pages/ExpensesPage'))
 const ReportsPage = lazy(() => import('@/pages/ReportsPage'))
@@ -47,6 +48,7 @@ export default function App() {
                 <Route index element={<DashboardPage />} />
                 <Route path="kasir" element={<CashierPage />} />
                 <Route path="produk" element={<ProductsPage />} />
+                <Route path="resep" element={<RecipesPage />} />
                 <Route path="transaksi" element={<TransactionsPage />} />
                 <Route path="beban" element={<ExpensesPage />} />
                 <Route path="laporan" element={<ReportsPage />} />

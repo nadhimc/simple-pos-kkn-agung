@@ -48,7 +48,8 @@ Pilihan:
   --role <peran>        pemilik atau kasir. Default: pemilik.
   --password <sandi>    Buat akun email/password baru kalau emailnya belum ada.
                         Kosongkan kalau akunnya sudah pernah masuk lewat Google.
-  --with-products       Ikut mengisi contoh produk warung. Boleh dihapus nanti.
+  --with-products       Ikut mengisi contoh bahan baku, barang jadi, dan produk
+                        olahan. Semuanya boleh dihapus nanti.
   --key <path>          Berkas kunci service account.
                         Default: ./serviceAccountKey.json atau
                         variabel GOOGLE_APPLICATION_CREDENTIALS.
@@ -213,21 +214,39 @@ console.log(`   uid ${user.uid}`)
 /* ----------------------------------------------------------- produk contoh */
 
 /**
- * Barang warung yang umum, dengan harga modal dan harga jual yang masuk akal.
+ * Contoh isi awal, mencakup ketiga jenis yang dipakai aplikasi: barang dagangan
+ * yang dijual apa adanya, produk olahan yang harga modalnya datang dari
+ * perhitungan HPP, dan bahan baku yang hanya dipakai lewat resep.
+ *
  * Semuanya boleh dihapus dari halaman Produk & Stok setelah dagangan asli
  * dimasukkan.
  */
 const SAMPLE_PRODUCTS = [
-  { sku: 'MI-001', name: 'Mie instan goreng', category: 'Makanan', unit: 'pcs', costPrice: 2800, sellPrice: 3500, stock: 48, minStock: 12 },
-  { sku: 'MN-001', name: 'Air mineral 600 ml', category: 'Minuman', unit: 'botol', costPrice: 2400, sellPrice: 3000, stock: 60, minStock: 24 },
-  { sku: 'MN-002', name: 'Teh kotak 250 ml', category: 'Minuman', unit: 'kotak', costPrice: 3600, sellPrice: 4500, stock: 36, minStock: 12 },
-  { sku: 'MN-003', name: 'Kopi sachet', category: 'Minuman', unit: 'pcs', costPrice: 1300, sellPrice: 2000, stock: 80, minStock: 20 },
-  { sku: 'SB-001', name: 'Gula pasir 1 kg', category: 'Sembako', unit: 'kg', costPrice: 14500, sellPrice: 17000, stock: 15, minStock: 5 },
-  { sku: 'SB-002', name: 'Minyak goreng 1 liter', category: 'Sembako', unit: 'botol', costPrice: 16800, sellPrice: 19500, stock: 12, minStock: 4 },
-  { sku: 'SB-003', name: 'Telur ayam', category: 'Sembako', unit: 'kg', costPrice: 27000, sellPrice: 31000, stock: 8, minStock: 3 },
-  { sku: 'SB-004', name: 'Beras 5 kg', category: 'Sembako', unit: 'karung', costPrice: 62000, sellPrice: 69000, stock: 6, minStock: 2 },
-  { sku: 'MK-002', name: 'Roti tawar', category: 'Makanan', unit: 'bungkus', costPrice: 13500, sellPrice: 16000, stock: 9, minStock: 3 },
-  { sku: 'RT-001', name: 'Sabun mandi batang', category: 'Kebutuhan Rumah', unit: 'pcs', costPrice: 3200, sellPrice: 4500, stock: 24, minStock: 8 },
+  // Barang jadi: dibeli lalu dijual apa adanya, muncul di layar kasir.
+  { type: 'jadi', sku: 'MI-001', name: 'Mie instan goreng', category: 'Makanan', unit: 'pcs', costPrice: 2800, sellPrice: 3500, stock: 48, minStock: 12 },
+  { type: 'jadi', sku: 'MN-001', name: 'Air mineral 600 ml', category: 'Minuman', unit: 'botol', costPrice: 2400, sellPrice: 3000, stock: 60, minStock: 24 },
+  { type: 'jadi', sku: 'MN-002', name: 'Teh kotak 250 ml', category: 'Minuman', unit: 'kotak', costPrice: 3600, sellPrice: 4500, stock: 36, minStock: 12 },
+  { type: 'jadi', sku: 'MN-003', name: 'Kopi sachet', category: 'Minuman', unit: 'pcs', costPrice: 1300, sellPrice: 2000, stock: 80, minStock: 20 },
+  { type: 'jadi', sku: 'SB-001', name: 'Gula pasir 1 kg', category: 'Sembako', unit: 'kg', costPrice: 14500, sellPrice: 17000, stock: 15, minStock: 5 },
+  { type: 'jadi', sku: 'SB-002', name: 'Minyak goreng 1 liter', category: 'Sembako', unit: 'botol', costPrice: 16800, sellPrice: 19500, stock: 12, minStock: 4 },
+  { type: 'jadi', sku: 'RT-001', name: 'Sabun mandi batang', category: 'Kebutuhan Rumah', unit: 'pcs', costPrice: 3200, sellPrice: 4500, stock: 24, minStock: 8 },
+
+  // Produk olahan sendiri. Stok awalnya nol dan harga modalnya nol, karena
+  // keduanya diisi oleh perhitungan HPP saat produksi pertama dijalankan.
+  { type: 'jadi', sku: 'OL-001', name: 'Cenil gula merah', category: 'Jajanan Olahan', unit: 'pcs', costPrice: 0, sellPrice: 1500, stock: 0, minStock: 20 },
+  { type: 'jadi', sku: 'OL-002', name: 'Klepon gula merah', category: 'Jajanan Olahan', unit: 'pcs', costPrice: 0, sellPrice: 2000, stock: 0, minStock: 20 },
+
+  // Bahan baku: tidak pernah muncul di kasir, hanya dipakai lewat resep.
+  // Satuannya satuan pembelian; resep boleh memakai gram atau ml.
+  { type: 'bahan', sku: 'BB-001', name: 'Gula merah', category: 'Bahan Baku', unit: 'kg', costPrice: 18000, sellPrice: 0, stock: 10, minStock: 3 },
+  { type: 'bahan', sku: 'BB-002', name: 'Tepung tapioka', category: 'Bahan Baku', unit: 'kg', costPrice: 12000, sellPrice: 0, stock: 8, minStock: 2 },
+  { type: 'bahan', sku: 'BB-003', name: 'Tepung beras ketan', category: 'Bahan Baku', unit: 'kg', costPrice: 16500, sellPrice: 0, stock: 5, minStock: 2 },
+  { type: 'bahan', sku: 'BB-004', name: 'Kelapa parut', category: 'Bahan Baku', unit: 'kg', costPrice: 9000, sellPrice: 0, stock: 4, minStock: 1 },
+  { type: 'bahan', sku: 'BB-005', name: 'Air galon', category: 'Bahan Baku', unit: 'liter', costPrice: 1200, sellPrice: 0, stock: 19, minStock: 5 },
+  { type: 'bahan', sku: 'BB-006', name: 'Garam', category: 'Bahan Baku', unit: 'kg', costPrice: 8000, sellPrice: 0, stock: 2, minStock: 1 },
+  { type: 'bahan', sku: 'BB-007', name: 'Pewarna makanan', category: 'Bahan Baku', unit: 'botol', costPrice: 6500, sellPrice: 0, stock: 3, minStock: 1 },
+  { type: 'bahan', sku: 'BB-008', name: 'Daun pandan', category: 'Bahan Baku', unit: 'bungkus', costPrice: 3000, sellPrice: 0, stock: 6, minStock: 2 },
+  { type: 'bahan', sku: 'BB-009', name: 'Mika kemasan', category: 'Kemasan', unit: 'pcs', costPrice: 450, sellPrice: 0, stock: 200, minStock: 50 },
 ]
 
 if (values['with-products']) {

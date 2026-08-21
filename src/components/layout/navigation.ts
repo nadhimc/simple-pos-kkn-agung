@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import type { IconProps } from '@phosphor-icons/react'
 import {
   ChartPieSliceIcon,
+  CookingPotIcon,
   GaugeIcon,
   PackageIcon,
   ReceiptIcon,
@@ -66,8 +67,14 @@ export const navigation: NavGroup[] = [
       {
         path: '/produk',
         label: 'Produk & Stok',
-        description: 'Kelola daftar barang, harga modal, harga jual, dan stok.',
+        description: 'Kelola bahan baku dan barang jadi beserta harga dan stoknya.',
         icon: PackageIcon,
+      },
+      {
+        path: '/resep',
+        label: 'Resep & HPP',
+        description: 'Hitung harga pokok produksi per satuan dari bahan baku, lalu catat produksinya.',
+        icon: CookingPotIcon,
       },
     ],
   },

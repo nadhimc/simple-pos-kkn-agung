@@ -61,6 +61,35 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
+    // Resep. Tidak menyimpan harga sama sekali: HPP selalu dihitung ulang dari
+    // harga bahan terkini, jadi resep hanya berisi daftar bahan dan takarannya.
+    match /recipes/{recipeId} {
+      allow read: if isStaff();
+      allow create, update: if isStaff()
+        && request.resource.data.productId is string
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.yieldQty is number
+        && request.resource.data.yieldQty > 0;
+      allow delete: if isStaff();
+    }
+
+    // Produksi. Seperti penjualan, dokumennya tidak boleh diedit supaya HPP
+    // historis tidak bisa diubah diam diam. Koreksi dilakukan dengan
+    // membatalkan produksi, yang mengembalikan stok bahan sekaligus.
+    match /productions/{productionId} {
+      allow read: if isStaff();
+      allow create: if isStaff()
+        && request.resource.data.operatorId == request.auth.uid
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && isPositiveNumber(request.resource.data.materialCost)
+        && request.resource.data.yieldQty is number
+        && request.resource.data.yieldQty > 0;
+      allow update: if false;
+      allow delete: if isStaff();
+    }
+
     // Beban operasional.
     match /expenses/{expenseId} {
       allow read: if isStaff();

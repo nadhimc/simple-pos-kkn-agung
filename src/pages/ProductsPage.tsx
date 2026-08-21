@@ -29,9 +29,10 @@ import { deleteProduct } from '@/services/products'
 import { writeErrorMessage } from '@/lib/errors'
 import { formatNumber, formatPercent, formatRupiah } from '@/lib/format'
 import { cn } from '@/lib/cn'
-import type { Product } from '@/types'
+import type { Product, ProductType } from '@/types'
 
 type StockFilter = 'semua' | 'menipis' | 'habis'
+type TypeFilter = 'semua' | ProductType
 
 function marginOf(product: Product) {
   if (product.sellPrice <= 0) return 0
@@ -50,6 +51,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('semua')
   const [stockFilter, setStockFilter] = useState<StockFilter>('semua')
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('semua')
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
@@ -60,6 +62,7 @@ export default function ProductsPage() {
   const visible = useMemo(() => {
     const keyword = search.trim().toLowerCase()
     return products.filter((product) => {
+      if (typeFilter !== 'semua' && product.type !== typeFilter) return false
       if (category !== 'semua' && product.category !== category) return false
       if (stockFilter === 'habis' && product.stock > 0) return false
       if (
@@ -74,18 +77,28 @@ export default function ProductsPage() {
         product.sku.toLowerCase().includes(keyword)
       )
     })
-  }, [products, search, category, stockFilter])
+  }, [products, search, category, stockFilter, typeFilter])
 
   const summary = useMemo(() => {
     const lowStock = products.filter(
       (product) => product.stock > 0 && product.stock <= product.minStock,
     ).length
     const outOfStock = products.filter((product) => product.stock <= 0).length
-    const inventoryValue = products.reduce(
-      (total, product) => total + product.costPrice * product.stock,
-      0,
-    )
-    return { lowStock, outOfStock, inventoryValue }
+    const valueOf = (list: Product[]) =>
+      list.reduce((total, product) => total + product.costPrice * product.stock, 0)
+
+    const materials = products.filter((product) => product.type === 'bahan')
+    const finished = products.filter((product) => product.type === 'jadi')
+
+    return {
+      lowStock,
+      outOfStock,
+      materialCount: materials.length,
+      finishedCount: finished.length,
+      materialValue: valueOf(materials),
+      finishedValue: valueOf(finished),
+      inventoryValue: valueOf(products),
+    }
   }, [products])
 
   async function handleDelete() {
@@ -106,7 +119,7 @@ export default function ProductsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Produk & Stok"
-        description="Kelola daftar barang, harga modal, harga jual, dan jumlah stok."
+        description="Bahan baku dan barang jadi dalam satu daftar. Bahan baku dipakai lewat resep, barang jadi dijual di kasir."
         actions={
           <Button
             icon={<PlusIcon size={17} weight="bold" />}
@@ -121,11 +134,23 @@ export default function ProductsPage() {
       />
 
       {/* Ringkasan dibiarkan sebagai satu baris bergaris, bukan tiga kartu seragam. */}
-      <div className="grid gap-px overflow-hidden rounded-panel border border-border bg-border sm:grid-cols-3">
+      <div className="grid gap-px overflow-hidden rounded-panel border border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
         <div className="bg-surface px-5 py-4">
-          <p className="text-xs text-ink-muted">Jenis produk</p>
+          <p className="text-xs text-ink-muted">Bahan baku</p>
           <p className="tabular mt-1 text-xl font-semibold text-ink">
-            {formatNumber(products.length)}
+            {formatNumber(summary.materialCount)}
+            <span className="ml-2 text-xs font-normal text-ink-muted">
+              {formatRupiah(summary.materialValue)}
+            </span>
+          </p>
+        </div>
+        <div className="bg-surface px-5 py-4">
+          <p className="text-xs text-ink-muted">Barang jadi</p>
+          <p className="tabular mt-1 text-xl font-semibold text-ink">
+            {formatNumber(summary.finishedCount)}
+            <span className="ml-2 text-xs font-normal text-ink-muted">
+              {formatRupiah(summary.finishedValue)}
+            </span>
           </p>
         </div>
         <div className="bg-surface px-5 py-4">
@@ -157,6 +182,17 @@ export default function ProductsPage() {
             containerClassName="min-w-56 flex-1"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+          />
+          <SelectField
+            label="Jenis"
+            containerClassName="w-44"
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}
+            options={[
+              { value: 'semua', label: 'Semua jenis' },
+              { value: 'jadi', label: 'Barang jadi' },
+              { value: 'bahan', label: 'Bahan baku' },
+            ]}
           />
           <SelectField
             label="Kategori"
@@ -237,7 +273,12 @@ export default function ProductsPage() {
                   return (
                     <tr key={product.id} className="transition-colors hover:bg-surface-2">
                       <td className="px-5 py-3.5">
-                        <p className="font-medium text-ink">{product.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-ink">{product.name}</p>
+                          {product.type === 'bahan' ? (
+                            <Badge tone="accent">bahan</Badge>
+                          ) : null}
+                        </div>
                         <p className="mt-0.5 text-xs text-ink-subtle">
                           {product.category}
                           {product.sku ? ` · ${product.sku}` : ''}
@@ -247,21 +288,31 @@ export default function ProductsPage() {
                         {formatRupiah(product.costPrice)}
                       </td>
                       <td className="tabular px-5 py-3.5 text-right font-medium text-ink">
-                        {formatRupiah(product.sellPrice)}
+                        {product.type === 'bahan' ? (
+                          <span className="text-ink-subtle">-</span>
+                        ) : (
+                          formatRupiah(product.sellPrice)
+                        )}
                       </td>
                       <td className="tabular px-5 py-3.5 text-right">
-                        <span
-                          className={cn(
-                            product.sellPrice < product.costPrice
-                              ? 'text-danger'
-                              : 'text-ink',
-                          )}
-                        >
-                          {formatRupiah(product.sellPrice - product.costPrice)}
-                        </span>
-                        <span className="ml-2 text-xs text-ink-subtle">
-                          {formatPercent(marginOf(product), 0)}
-                        </span>
+                        {product.type === 'bahan' ? (
+                          <span className="text-ink-subtle">-</span>
+                        ) : (
+                          <>
+                            <span
+                              className={cn(
+                                product.sellPrice < product.costPrice
+                                  ? 'text-danger'
+                                  : 'text-ink',
+                              )}
+                            >
+                              {formatRupiah(product.sellPrice - product.costPrice)}
+                            </span>
+                            <span className="ml-2 text-xs text-ink-subtle">
+                              {formatPercent(marginOf(product), 0)}
+                            </span>
+                          </>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <Badge tone={tone}>

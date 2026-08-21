@@ -5,6 +5,12 @@ import type { Product } from '@/types'
 
 interface UseProductsResult {
   products: Product[]
+  /** Bahan baku saja. Dipakai pemilih bahan di resep. */
+  materials: Product[]
+  /** Barang jadi saja. Dipakai layar kasir dan pemilih hasil produksi. */
+  finished: Product[]
+  /** Peta id ke produk, dipakai perhitungan HPP dan pemeriksaan stok. */
+  productsById: Map<string, Product>
   categories: string[]
   loading: boolean
   error: string
@@ -35,5 +41,20 @@ export function useProducts(): UseProductsResult {
     return [...unique].sort((a, b) => a.localeCompare(b, 'id'))
   }, [products])
 
-  return { products, categories, loading, error }
+  const materials = useMemo(
+    () => products.filter((product) => product.type === 'bahan'),
+    [products],
+  )
+
+  const finished = useMemo(
+    () => products.filter((product) => product.type === 'jadi'),
+    [products],
+  )
+
+  const productsById = useMemo(
+    () => new Map(products.map((product) => [product.id, product])),
+    [products],
+  )
+
+  return { products, materials, finished, productsById, categories, loading, error }
 }

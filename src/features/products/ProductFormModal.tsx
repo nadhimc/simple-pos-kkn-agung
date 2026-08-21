@@ -3,9 +3,8 @@ import { Button, Modal, SelectField, TextField, toast } from '@/components/ui'
 import { createProduct, updateProduct } from '@/services/products'
 import { writeErrorMessage } from '@/lib/errors'
 import { formatPercent, formatRupiah } from '@/lib/format'
-import type { Product, ProductDraft } from '@/types'
-
-const UNITS = ['pcs', 'bungkus', 'botol', 'kg', 'gram', 'liter', 'porsi', 'lusin']
+import { UNIT_LIST } from '@/lib/units'
+import type { Product, ProductDraft, ProductType } from '@/types'
 
 interface ProductFormModalProps {
   open: boolean
@@ -17,6 +16,7 @@ interface ProductFormModalProps {
 }
 
 interface FormState {
+  type: ProductType
   name: string
   sku: string
   category: string
@@ -28,6 +28,7 @@ interface FormState {
 }
 
 const EMPTY: FormState = {
+  type: 'jadi',
   name: '',
   sku: '',
   category: '',
@@ -59,6 +60,7 @@ export function ProductFormModal({
     setForm(
       product
         ? {
+            type: product.type,
             name: product.name,
             sku: product.sku,
             category: product.category,
@@ -72,12 +74,13 @@ export function ProductFormModal({
     )
   }, [open, product])
 
+  const isMaterial = form.type === 'bahan'
   const cost = toNumber(form.costPrice)
-  const sell = toNumber(form.sellPrice)
+  const sell = isMaterial ? 0 : toNumber(form.sellPrice)
   const profitPerUnit = sell - cost
   const margin = sell > 0 ? (profitPerUnit / sell) * 100 : 0
 
-  function update<K extends keyof FormState>(key: K, value: string) {
+  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((previous) => ({ ...previous, [key]: value }))
   }
 
@@ -85,7 +88,8 @@ export function ProductFormModal({
     const next: Partial<Record<keyof FormState, string>> = {}
     if (!form.name.trim()) next.name = 'Nama produk wajib diisi.'
     if (cost < 0) next.costPrice = 'Harga modal tidak boleh negatif.'
-    if (sell <= 0) next.sellPrice = 'Harga jual harus lebih dari nol.'
+    // Bahan baku tidak dijual, jadi tidak punya harga jual untuk divalidasi.
+    if (!isMaterial && sell <= 0) next.sellPrice = 'Harga jual harus lebih dari nol.'
     if (toNumber(form.stock) < 0) next.stock = 'Stok tidak boleh negatif.'
     setErrors(next)
     return Object.keys(next).length === 0
@@ -96,6 +100,7 @@ export function ProductFormModal({
     if (!validate()) return
 
     const draft: ProductDraft = {
+      type: form.type,
       name: form.name.trim(),
       sku: form.sku.trim(),
       category: form.category.trim() || 'Umum',
@@ -130,9 +135,11 @@ export function ProductFormModal({
       onClose={onClose}
       title={product ? 'Ubah produk' : 'Tambah produk'}
       description={
-        product
-          ? 'Perubahan harga hanya berlaku untuk penjualan berikutnya.'
-          : 'Harga modal dipakai menghitung laba setiap kali produk ini terjual.'
+        isMaterial
+          ? 'Bahan baku dipakai lewat resep. Harga modalnya jadi dasar perhitungan HPP.'
+          : product
+            ? 'Perubahan harga hanya berlaku untuk penjualan berikutnya.'
+            : 'Harga modal dipakai menghitung laba setiap kali produk ini terjual.'
       }
       footer={
         <>
@@ -146,6 +153,25 @@ export function ProductFormModal({
       }
     >
       <form id="product-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/*
+          Jenis menentukan seluruh sisa form. Bahan baku tidak punya harga jual
+          dan tidak pernah muncul di kasir, ia hanya dipakai lewat resep.
+        */}
+        <SelectField
+          label="Jenis"
+          value={form.type}
+          helper={
+            isMaterial
+              ? 'Dipakai untuk produksi lewat resep. Tidak muncul di layar kasir.'
+              : 'Dijual langsung di kasir, baik barang kulakan maupun hasil produksi sendiri.'
+          }
+          options={[
+            { value: 'jadi', label: 'Barang jadi, dijual di kasir' },
+            { value: 'bahan', label: 'Bahan baku, dipakai produksi' },
+          ]}
+          onChange={(event) => update('type', event.target.value as ProductType)}
+        />
+
         <TextField
           label="Nama produk"
           required
@@ -178,51 +204,64 @@ export function ProductFormModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
-            label="Harga modal"
+            label={isMaterial ? `Harga modal per ${form.unit}` : 'Harga modal'}
             prefix="Rp"
             type="number"
             inputMode="numeric"
             min={0}
             step={100}
             required
+            helper={
+              isMaterial ? 'Dipakai menghitung HPP produk yang memakai bahan ini.' : undefined
+            }
             value={form.costPrice}
             error={errors.costPrice}
             onChange={(event) => update('costPrice', event.target.value)}
           />
-          <TextField
-            label="Harga jual"
-            prefix="Rp"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={100}
-            required
-            value={form.sellPrice}
-            error={errors.sellPrice}
-            onChange={(event) => update('sellPrice', event.target.value)}
-          />
+          {!isMaterial ? (
+            <TextField
+              label="Harga jual"
+              prefix="Rp"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={100}
+              required
+              value={form.sellPrice}
+              error={errors.sellPrice}
+              onChange={(event) => update('sellPrice', event.target.value)}
+            />
+          ) : null}
         </div>
 
         {/* Umpan balik laba langsung terlihat sebelum produk disimpan. */}
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface-2 px-4 py-3">
-          <span className="text-sm text-ink-muted">Laba per {form.unit}</span>
-          <span
-            className={`tabular text-sm font-semibold ${
-              profitPerUnit < 0 ? 'text-danger' : 'text-ink'
-            }`}
-          >
-            {formatRupiah(profitPerUnit)}
-            <span className="ml-2 font-normal text-ink-muted">
-              margin {formatPercent(margin)}
+        {!isMaterial ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface-2 px-4 py-3">
+            <span className="text-sm text-ink-muted">Laba per {form.unit}</span>
+            <span
+              className={`tabular text-sm font-semibold ${
+                profitPerUnit < 0 ? 'text-danger' : 'text-ink'
+              }`}
+            >
+              {formatRupiah(profitPerUnit)}
+              <span className="ml-2 font-normal text-ink-muted">
+                margin {formatPercent(margin)}
+              </span>
             </span>
-          </span>
-        </div>
+          </div>
+        ) : (
+          <p className="rounded-control border border-border bg-surface-2 px-4 py-3 text-xs text-ink-muted">
+            Bahan baku tidak punya harga jual. Nilainya masuk ke HPP produk jadi
+            saat dipakai produksi lewat halaman Resep &amp; HPP.
+          </p>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-3">
           <SelectField
             label="Satuan"
+            helper={isMaterial ? 'Satuan pembelian, resep boleh memakai satuan lain.' : undefined}
             value={form.unit}
-            options={UNITS.map((unit) => ({ value: unit, label: unit }))}
+            options={UNIT_LIST.map((unit) => ({ value: unit, label: unit }))}
             onChange={(event) => update('unit', event.target.value)}
           />
           <TextField

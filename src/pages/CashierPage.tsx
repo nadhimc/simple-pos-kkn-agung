@@ -78,7 +78,9 @@ function ProductTile({
 }
 
 export default function CashierPage() {
-  const { products, categories, loading, error } = useProducts()
+  // `finished` saja: bahan baku tidak pernah dijual di kasir, ia hanya dipakai
+  // lewat resep untuk memproduksi barang jadi.
+  const { finished, productsById, loading, error } = useProducts()
   const { items, addItem } = useCart()
 
   const [search, setSearch] = useState('')
@@ -88,19 +90,21 @@ export default function CashierPage() {
   const [lastSale, setLastSale] = useState<Sale | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const productsById = useMemo(
-    () => new Map(products.map((product) => [product.id, product])),
-    [products],
-  )
-
   const qtyInCart = useMemo(
     () => new Map(items.map((item) => [item.productId, item.qty])),
     [items],
   )
 
+  // Kategori dihitung dari barang jadi saja, supaya kategori yang hanya dipakai
+  // bahan baku tidak muncul sebagai chip kosong di kasir.
+  const categories = useMemo(() => {
+    const unique = new Set(finished.map((product) => product.category).filter(Boolean))
+    return [...unique].sort((a, b) => a.localeCompare(b, 'id'))
+  }, [finished])
+
   const visible = useMemo(() => {
     const keyword = search.trim().toLowerCase()
-    return products.filter((product) => {
+    return finished.filter((product) => {
       if (category !== 'semua' && product.category !== category) return false
       if (!keyword) return true
       return (
@@ -108,7 +112,7 @@ export default function CashierPage() {
         product.sku.toLowerCase().includes(keyword)
       )
     })
-  }, [products, search, category])
+  }, [finished, search, category])
 
   const subtotal = cartSubtotal(items)
 
@@ -121,7 +125,7 @@ export default function CashierPage() {
     const keyword = search.trim().toLowerCase()
     if (!keyword) return
 
-    const exact = products.find((product) => product.sku.toLowerCase() === keyword)
+    const exact = finished.find((product) => product.sku.toLowerCase() === keyword)
     const target = exact ?? (visible.length === 1 ? visible[0] : undefined)
     if (!target) return
 
@@ -196,11 +200,11 @@ export default function CashierPage() {
                 <Skeleton key={index} className="h-28 rounded-panel" />
               ))}
             </div>
-          ) : products.length === 0 ? (
+          ) : finished.length === 0 ? (
             <EmptyState
               icon={PackageIcon}
               title="Belum ada produk untuk dijual"
-              description="Tambahkan barang dagangan di halaman Produk & Stok, lalu kembali ke sini untuk mulai berjualan."
+              description="Tambahkan barang jadi di halaman Produk & Stok, atau produksi dari resep di halaman Resep & HPP, lalu kembali ke sini."
             />
           ) : visible.length === 0 ? (
             <EmptyState

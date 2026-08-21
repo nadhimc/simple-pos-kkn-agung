@@ -210,7 +210,10 @@ export default function DashboardPage() {
                     <p className="truncate text-sm font-medium text-ink">
                       {product.name}
                     </p>
-                    <p className="mt-0.5 text-xs text-ink-subtle">{product.category}</p>
+                    <p className="mt-0.5 text-xs text-ink-subtle">
+                      {product.type === 'bahan' ? 'Bahan baku · ' : ''}
+                      {product.category}
+                    </p>
                   </div>
                   <Badge tone={product.stock <= 0 ? 'danger' : 'warning'}>
                     <WarningIcon size={12} weight="fill" />

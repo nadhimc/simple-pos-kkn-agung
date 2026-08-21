@@ -129,8 +129,10 @@ export function StockModal({ open, onClose, product }: StockModalProps) {
 
         {/* Pembelian stok bukan beban: modalnya diakui saat barang terjual. */}
         <p className="text-xs text-ink-subtle">
-          Pembelian stok tidak dicatat sebagai beban operasional. Modalnya masuk
-          hitungan laba saat barang ini terjual.
+          Pembelian stok tidak dicatat sebagai beban operasional.{' '}
+          {product.type === 'bahan'
+            ? 'Modalnya masuk hitungan laba lewat HPP, saat produk yang memakai bahan ini terjual.'
+            : 'Modalnya masuk hitungan laba saat barang ini terjual.'}
         </p>
       </form>
     </Modal>
