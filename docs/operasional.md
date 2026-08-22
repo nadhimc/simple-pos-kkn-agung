@@ -48,84 +48,78 @@ Verifikasi dengan Rules Playground seperti dijelaskan di
 ## Mengisi data awal
 
 Koleksi Firestore tercipta sendiri saat dokumen pertamanya ditulis, jadi tidak
-ada yang perlu dibuat manual kecuali `staff`.
+ada yang perlu dibuat manual kecuali admin platform pertama.
 
 | Koleksi | Dibuat oleh | Kapan |
 | --- | --- | --- |
-| `staff` | `scripts/seed.mjs` atau Console | wajib, sebelum bisa masuk |
-| `products` | halaman Produk & Stok | produk pertama ditambahkan |
-| `sales` | layar Kasir | transaksi pertama diselesaikan |
-| `expenses` | halaman Beban Operasional | beban pertama dicatat |
+| `users` | `scripts/seed.mjs`, lalu halaman Pengguna | wajib, sebelum bisa masuk |
+| `tenants` | halaman Warung, atau skrip seed | warung pertama ditambahkan |
+| `tenants/{id}/products` | halaman Produk & Stok | produk pertama ditambahkan |
+| `tenants/{id}/sales` | layar Kasir | transaksi pertama diselesaikan |
+| `tenants/{id}/expenses` | halaman Beban Operasional | beban pertama dicatat |
 
-### Kenapa staf pertama butuh perkakas terpisah
+### Kenapa admin pertama butuh perkakas terpisah
 
 ```mermaid
 flowchart TD
-  A["Aplikasi ingin menulis staff/uid"] --> B{"firestore.rules"}
-  B -->|"allow write: if false"| C["DITOLAK, selalu"]
-  C --> D["Tidak ada jalan mendaftarkan<br/>diri sendiri jadi staf"]
-  D --> E["Konsekuensi: staf pertama<br/>harus dibuat dari luar aplikasi"]
-  E --> F1["Jalur A: Firebase Console, manual"]
-  E --> F2["Jalur B: scripts/seed.mjs<br/>dengan Admin SDK"]
-
-  F2 --> G["Admin SDK melewati rules by design"]
+  A["Aplikasi ingin menulis users/uid<br/>dengan role: admin"] --> B{"isValidUser() di rules"}
+  B -->|"role harus pemilik atau kasir"| C["DITOLAK, selalu"]
+  C --> D["Tidak ada jalan mengangkat<br/>diri sendiri jadi admin"]
+  D --> E["Konsekuensi: admin pertama<br/>harus dibuat dari luar aplikasi"]
+  E --> F["scripts/seed.mjs dengan Admin SDK"]
+  F --> G["Admin SDK melewati rules by design"]
 
   classDef ok fill:#047857,stroke:#047857,color:#ffffff
   class D ok
 ```
 
-### Jalur A, manual lewat Console
+Rantai pendaftaran punya satu awal yang sengaja berada di luar aplikasi. Kalau
+tidak, siapa pun yang berhasil login bisa mengangkat dirinya jadi admin seluruh
+layanan.
 
-```mermaid
-sequenceDiagram
-  autonumber
-  actor P as Pemilik
-  participant App as Aplikasi
-  participant Con as Firebase Console
-
-  P->>App: masuk dengan akun Google
-  App->>App: getStaffProfile mengembalikan null
-  App-->>P: "Akun belum terdaftar" beserta uid
-  P->>P: salin uid
-  P->>Con: Firestore > Start collection "staff"
-  Note over Con: Document ID = uid tadi,<br/>BUKAN Auto-ID
-  P->>Con: field name, email, role = pemilik
-  P->>App: masuk lagi
-  App-->>P: diterima
-```
-
-Kesalahan paling sering di langkah ini: memakai **Auto-ID** untuk dokumen. Id
-dokumen harus sama persis dengan uid, karena Security Rules mencarinya lewat
-`request.auth.uid`.
-
-### Jalur B, dengan skrip
+### Menyiapkan admin dan warung pertama
 
 Ambil kunci di Firebase Console > Project settings > Service accounts >
 Generate new private key, simpan sebagai `serviceAccountKey.json` di akar proyek.
 
 ```bash
-# staf pertama, sekaligus membuat akun email/password
-npm run seed -- --email pemilik@toko.id --password rahasia123 --name "Bu Sri"
+# admin platform, sekaligus membuat akun email/password
+npm run seed -- admin --email admin@toko.id --password rahasia123 --name "Admin"
 
-# menambah kasir
-npm run seed -- --email kasir@toko.id --role kasir --name "Andi"
+# admin yang akunnya sudah ada, misalnya sudah pernah sign-in dengan Google
+npm run seed -- admin --email admin@toko.id
 
-# sekalian isi sepuluh produk contoh
-npm run seed -- --email pemilik@toko.id --with-products
+# warung pertama beserta pemiliknya, sekalian isi produk contoh
+npm run seed -- warung --tenant "Warung Gendis" --email agung@toko.id --password rahasia123 --with-products
+
+# menambah kasir yang masuk lewat nomor HP
+npm run seed -- warung --tenant "Warung Gendis" --phone 085156657853 --role kasir --name "Andi"
+
+# menghapus koleksi lama peninggalan model satu warung
+npm run seed -- reset --yes
 
 # semua pilihan
 npm run seed -- --help
 ```
+
+Setelah admin ada, warung berikutnya lebih enak ditambahkan dari aplikasi: menu
+**Warung** > **Tambah warung**, dan begitu warungnya jadi aplikasi langsung
+menawarkan mendaftarkan orang yang mengelolanya.
+
+> **Admin SDK bisa membuat akun nomor HP tanpa OTP**, sesuatu yang tidak bisa
+> dilakukan aplikasi. Dari browser, nomor HP selalu harus dibuktikan pemilik
+> nomornya. Itu sebabnya pendaftaran nomor HP lewat aplikasi dirancang berdua:
+> admin mengetik nomornya, pemilik warung membacakan kodenya.
 
 ```mermaid
 flowchart TD
   S(["npm run seed"]) --> K{"serviceAccountKey.json ada?"}
   K -->|"tidak"| KE["Cetak cara mengunduhnya, keluar"]
   K -->|"ya"| I["initializeApp dengan cert"]
-  I --> U{"getUserByEmail"}
+  I --> U{"getUserByEmail atau<br/>getUserByPhoneNumber"}
 
-  U -->|"ketemu"| W["Tulis staff/uid, merge"]
-  U -->|"tidak ada, ada --password"| CR["createUser lalu tulis staff/uid"]
+  U -->|"ketemu"| W["Tulis users/uid, merge"]
+  U -->|"tidak ada, ada --password"| CR["createUser lalu tulis users/uid"]
   U -->|"tidak ada, tanpa --password"| UE["Sarankan --password<br/>atau login Google sekali dulu"]
 
   CR --> W
@@ -196,12 +190,12 @@ Authorized domains**. Kalau tidak, login Google gagal dengan
 flowchart TD
   P(["Ada masalah"]) --> Q1{"Bisa masuk?"}
 
-  Q1 -->|"tidak, 'Akun belum terdaftar'"| A1["Dokumen staff/uid belum ada<br/>atau id-nya Auto-ID"]
+  Q1 -->|"tidak, 'Akun belum terdaftar'"| A1["Baris users/uid belum ada,<br/>id-nya Auto-ID, atau active false"]
   Q1 -->|"tidak, popup langsung tertutup"| A2["Provider Google belum aktif,<br/>atau domain belum diizinkan"]
   Q1 -->|"tidak, halaman kosong"| A3["Cek console browser.<br/>Biasanya VITE_FIREBASE_* kosong"]
   Q1 -->|"ya"| Q2{"Data tampil?"}
 
-  Q2 -->|"tidak, permission-denied"| B1["Rules belum di-deploy,<br/>atau staff/uid tidak cocok"]
+  Q2 -->|"tidak, permission-denied"| B1["Rules belum di-deploy, users/uid<br/>tidak cocok, atau tenantId salah"]
   Q2 -->|"tidak, failed-precondition"| B2["Butuh indeks komposit.<br/>Tautannya ada di console browser"]
   Q2 -->|"tidak, unavailable"| B3["Offline. Data cache dipakai,<br/>tulisan mengantre"]
   Q2 -->|"ya"| Q3{"Menyimpan berhasil?"}
@@ -218,7 +212,7 @@ flowchart TD
 
 | Kode | Arti | Perbaikan |
 | --- | --- | --- |
-| `permission-denied` | Rules menolak | Cek dokumen `staff/{uid}`, pastikan rules sudah di-deploy |
+| `permission-denied` | Rules menolak | Cek dokumen `users/{uid}` beserta `tenantId` dan `active`, pastikan rules sudah di-deploy |
 | `unavailable` | Tidak bisa menghubungi server | Normal saat offline, data cache dipakai |
 | `failed-precondition` | Indeks belum ada | Buka tautan di console browser, lalu catat di `firestore.indexes.json` |
 | `resource-exhausted` | Kuota harian habis | Tunggu reset, atau naikkan paket Firebase |
@@ -232,7 +226,7 @@ flowchart TD
 | --- | --- | --- |
 | Perbarui dependensi | Triwulan | `npm outdated`, naikkan bertahap, `npm run build` tiap langkah |
 | Audit keamanan | Tiap perubahan dependensi | `npm audit --omit=dev` harus bersih |
-| Cabut akses staf keluar | Saat terjadi | Hapus dokumen `staff/{uid}` |
+| Cabut akses orang yang keluar | Saat terjadi | Halaman Pengguna: nonaktifkan, atau cabut akses |
 | Cadangkan data | Bulanan | Console > Firestore > Import/Export, atau unduh CSV dari halaman Laba Rugi |
 | Tinjau ulang rules | Tiap menambah koleksi | Koleksi baru tanpa aturan otomatis ditolak, itu perilaku yang benar |
 

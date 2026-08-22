@@ -8,8 +8,16 @@ keduanya bertentangan, `docs/` yang harus diperbarui mengikuti kode.
 
 ## Apa ini
 
-Aplikasi POS sederhana untuk UMKM: kasir, stok, beban operasional, dan laporan
-laba rugi. Dipakai satu sampai dua orang di satu gerai, bukan multi cabang.
+Layanan POS sederhana untuk UMKM: kasir, stok, beban operasional, dan laporan
+laba rugi. Satu pemasangan melayani banyak warung, tapi tiap warung tetap
+dipakai satu sampai dua orang di satu gerai, bukan multi cabang.
+
+Ada dua dunia yang memakai kerangka yang sama tapi tidak pernah saling melihat:
+
+- **Admin platform** mengelola daftar warung dan penggunanya, dan sengaja tidak
+  bisa membaca pembukuan warung mana pun.
+- **Orang warung** hanya melihat warungnya sendiri, persis seperti aplikasi satu
+  toko. Satu akun terikat pada tepat satu warung.
 
 Cakupannya sengaja kecil. Sebelum menambah fitur, tanyakan apakah pemilik warung
 benar benar memakainya setiap hari. Kalau tidak, jangan ditambahkan.
@@ -41,14 +49,15 @@ Selalu jalankan `npm run build` sebelum commit.
 src/
   components/
     layout/      AppShell, Sidebar, Header, BrandMark, navigation.ts
+    routing/     AuthGuards.tsx
     ui/          kit komponen bersama, diekspor lewat components/ui/index.ts
-    RequireAuth.tsx
   contexts/      AuthContext
-  features/      komponen khusus satu domain (cashier, products, expenses, sales, dashboard)
-  hooks/         useProducts, usePeriod, useTheme
-  lib/           firebase, format, profit, errors, cn
+  features/      komponen khusus satu domain (cashier, products, expenses,
+                 sales, dashboard, recipes, admin)
+  hooks/         useProducts, usePeriod, useAdmin, useTheme
+  lib/           firebase, format, profit, hpp, units, phone, phoneAuth, errors, cn
   pages/         satu berkas per rute, default export
-  services/      seluruh akses Firestore
+  services/      seluruh akses Firestore, termasuk paths.ts
   types/         model data
 ```
 
@@ -56,13 +65,20 @@ Aturannya: **halaman tidak memanggil Firestore langsung.** Semua kueri dan
 tulisan lewat `src/services`, dibungkus hook di `src/hooks` kalau butuh
 langganan real time.
 
+Aturan kedua: **fungsi service data usaha selalu menerima `tenantId` sebagai
+argumen pertama.** Jalurnya dirakit di `src/services/paths.ts`, yang menolak
+tenantId kosong dengan pesan yang jelas alih alih diam diam membentuk jalur
+`tenants//products`.
+
 ## Menambah halaman baru
 
 Tiga langkah, tidak ada berkas layout yang perlu disentuh:
 
-1. Tambah entri di `src/components/layout/navigation.ts` (path, label,
-   description, icon).
-2. Daftarkan `<Route>` dengan path yang sama di `src/App.tsx`.
+1. Tambah entri di `src/components/layout/navigation.ts`, di
+   `tenantNavigation` untuk halaman warung atau `adminNavigation` untuk halaman
+   platform (path, label, description, icon).
+2. Daftarkan `<Route>` dengan path yang sama di `src/App.tsx`, di dalam
+   `RequireTenantUser` atau `RequireAdmin` sesuai daftarnya.
 3. Buat komponennya di `src/pages` dengan default export.
 
 Sidebar, judul header, dan judul tab browser semuanya membaca `navigation.ts`.
@@ -109,34 +125,54 @@ baris.
 
 ## Kontrol akses
 
-Ada dua metode masuk: email/password dan Google. Keduanya hanya membuktikan
-**siapa** orangnya, bukan bahwa dia orang toko. Sejak Google aktif, siapa pun
-pemilik akun Google bisa lolos tahap autentikasi.
+Ada tiga metode masuk: nomor HP (OTP), email/password, dan Google. Ketiganya
+hanya membuktikan **siapa** orangnya, bukan bahwa dia berhak masuk. Siapa pun
+pemilik akun Google atau nomor HP bisa lolos tahap autentikasi.
 
-Yang memisahkan staf dari orang asing adalah keberadaan dokumen `staff/{uid}`.
-`firestore.rules` memeriksanya lewat `isStaff()` pada setiap koleksi, dan
-`AuthContext` memeriksa hal yang sama untuk pengalaman pengguna.
+Yang menentukan boleh tidaknya masuk, dan ke warung yang mana, adalah dokumen
+`users/{uid}`. `firestore.rules` membacanya di sisi server pada setiap
+permintaan, dan `AuthContext` membaca hal yang sama untuk pengalaman pengguna.
 
-**Aplikasi tidak pernah menulis ke koleksi `staff`** (`allow write: if false`).
-Dokumen staf hanya dibuat dari luar aplikasi, supaya tidak ada jalan bagi siapa
-pun untuk mendaftarkan dirinya sendiri. Jangan menambahkan halaman manajemen staf
-tanpa memikirkan ulang aturan ini.
+**Tidak ada pendaftaran mandiri.** Seluruh pengguna didaftarkan admin platform
+lewat halaman Pengguna. Aturan `users` hanya bisa ditulis akun ber-`role: admin`,
+dan validatornya menolak peran `admin` itu sendiri, sehingga tidak ada jalan bagi
+siapa pun, termasuk admin yang sudah ada, mengangkat admin baru dari dalam
+aplikasi.
 
-Jalurnya ada dua: Firebase Console, atau `scripts/seed.mjs` yang memakai Admin
-SDK. Admin SDK melewati Security Rules by design, jadi kunci service account-nya
+**Admin pertama hanya lahir dari `scripts/seed.mjs`** yang memakai Admin SDK.
+Admin SDK melewati Security Rules by design, jadi kunci service account-nya
 setara akses penuh ke seluruh proyek. Kunci itu masuk `.gitignore` dan tidak
 boleh dipakai di kode aplikasi, hanya di skrip yang dijalankan manual.
+
+**Admin platform tidak bisa membaca pembukuan warung mana pun.** Perhatikan
+bahwa `isAdmin()` tidak muncul sama sekali di aturan subkoleksi tenant, dan
+ketiadaan itulah jaminannya: satu akun admin yang bocor tidak berarti seluruh
+pembukuan semua warung ikut terbuka. Jangan menambahkannya ke sana tanpa alasan
+baru yang kuat.
 
 Skrip seed tidak pernah menulis ke koleksi `sales`. Penjualan palsu akan merusak
 laporan laba rugi yang sebenarnya.
 
-Pemeriksaan staf di klien sengaja **gagal terbuka** saat jaringan bermasalah:
-kasir tidak boleh terlempar keluar di tengah jualan. Itu aman karena
-`firestore.rules` tetap memeriksa keanggotaan yang sama di sisi server, jadi
-lolos di klien tidak memberi akses data apa pun.
+Akun yang berhasil login tetapi belum terdaftar langsung di-signout, dan halaman
+masuk menampilkan UID-nya supaya bisa dikirim ke admin. Admin bisa mendaftarkan
+UID itu langsung lewat mode UID di form pengguna, yang juga satu satunya cara
+mendaftarkan orang yang hanya punya akun Google.
 
-Akun yang berhasil login tetapi tidak terdaftar langsung di-signout, dan halaman
-masuk menampilkan UID-nya supaya bisa dikirim ke pemilik toko.
+### Membuat akun tanpa kehilangan sesi sendiri
+
+`createUserWithEmailAndPassword` dan `confirmationResult.confirm` sama sama ikut
+me-login akun yang baru dibuat. Kalau dijalankan di instance Firebase utama,
+admin yang sedang mendaftarkan pemilik warung akan langsung terlempar keluar dan
+berganti jadi orang itu.
+
+Karena itu pendaftaran berjalan di **instance Firebase kedua** dengan
+`inMemoryPersistence` (`registrarAuth` di `src/services/users.ts`). Sesi di
+instance utama tidak tersentuh, dan tidak ada sesi menggantung milik orang lain
+di perangkat admin.
+
+Nomor HP tidak bisa didaftarkan sepihak: OTP-nya dikirim ke HP orangnya, dengan
+atau tanpa backend. Jadi alurnya memang dibuat berdua, admin mengetik nomornya
+lalu pemilik warung membacakan kodenya.
 
 ### Penjagaan rute
 
@@ -148,6 +184,12 @@ dijaga.
 | --- | --- |
 | `RequireAuth` | seluruh aplikasi, memantulkan yang belum masuk ke `/masuk` |
 | `RedirectIfAuthenticated` | `/masuk`, memantulkan yang sudah masuk ke aplikasi |
+| `RequireTenantUser` | halaman warung, memantulkan admin ke `/admin` |
+| `RequireAdmin` | halaman platform, memantulkan orang warung ke `/kasir` |
+
+Pemisahan dua dunia itu bukan sekadar menyembunyikan menu: `firestore.rules`
+menegakkan batas yang sama di server, jadi admin yang memaksa membuka `/laporan`
+tetap tidak mendapat satu angka pun.
 
 Selama sesi masih dipulihkan, keduanya menampilkan layar tunggu yang sama. Tanpa
 itu, menyegarkan halaman akan memperlihatkan kedipan form login walaupun sudah
@@ -159,7 +201,14 @@ tautan dalam seperti `/laporan?periode=bulan-ini` tetap sampai setelah masuk.
 navigasi tidak bisa dipakai melempar pengguna ke domain luar.
 
 Tujuan bawaan setelah masuk adalah `AUTH_LANDING`, yaitu layar kasir, bukan
-dashboard: itu pekerjaan yang dibuka puluhan kali sehari.
+dashboard: itu pekerjaan yang dibuka puluhan kali sehari. Admin platform tidak
+punya kasir, jadi mendarat di `ADMIN_LANDING`, daftar warung.
+
+Kalau profil penggunanya gagal dibaca, hampir selalu karena jaringan, sesinya
+**tidak** diputus: kasir tidak boleh terlempar keluar di tengah jualan. Tapi
+aplikasinya juga tidak bisa digambar tanpa tahu warung mana yang dimaksud, jadi
+`RequireAuth` menampilkan layar coba-lagi, bukan layar kosong yang menyamarkan
+keadaan.
 
 ## Produksi dan HPP
 
@@ -196,10 +245,32 @@ Penjelasan lengkap beserta diagramnya di [`docs/produksi.md`](./docs/produksi.md
 
 ## Model data Firestore
 
-Enam koleksi, tanpa subcollection.
+Dua koleksi di akar, dan lima subkoleksi di bawah tiap warung.
 
-**`staff`** — id dokumen adalah `uid` dari Firebase Auth. Isinya `name, email,
-role` (`pemilik` atau `kasir`). Dibuat manual lewat Console.
+```
+users/{uid}
+tenants/{tenantId}
+tenants/{tenantId}/products/{id}
+tenants/{tenantId}/recipes/{id}
+tenants/{tenantId}/productions/{id}
+tenants/{tenantId}/sales/{id}
+tenants/{tenantId}/expenses/{id}
+```
+
+**Tenant adalah bagian dari jalur dokumen, bukan field di dalamnya.** Kalau
+tenant hanya berupa field, keamanan seluruh layanan bergantung pada setiap kueri
+di seluruh kode ingat menyertakan filternya; satu yang lupa, dan omzet warung
+tetangga ikut terbaca. Dengan bentuk jalur, aturannya
+`match /tenants/{id}/{doc=**}` dan tidak ada kueri yang **bisa** lupa: jalur yang
+salah ditolak server. Jangan membalik ini.
+
+**`users`** — id dokumen adalah `uid` dari Firebase Auth. Isinya `name, email,
+phone, role` (`admin`, `pemilik`, atau `kasir`), `tenantId`, `active`,
+`createdAt`. `tenantId` kosong hanya untuk admin platform. Ditulis admin lewat
+aplikasi, kecuali baris admin pertama yang datang dari skrip seed.
+
+**`tenants`** — `name, ownerName, phone, address, createdAt, updatedAt`. Hanya
+identitas warung, tanpa angka usaha.
 
 **`products`** — `type, name, sku, category, costPrice, sellPrice, stock, unit,
 minStock, createdAt, updatedAt`
@@ -258,6 +329,20 @@ layar kasir memeriksa kecukupan stok terhadap snapshot terbaru sebelum menyimpan
 **Firestore memakai cache persisten multi tab.** Kasir sering membuka kasir di
 satu tab dan laporan di tab lain.
 
+**Sesi sengaja dibuat awet, dan tidak ada PIN.** Persistensi auth dipasang
+IndexedDB dengan localStorage sebagai cadangan. Refresh token Firebase tidak
+punya masa berlaku, jadi selama tidak logout orangnya tidak akan pernah diminta
+OTP lagi di perangkat yang sama. Itu memang tujuannya: masuk lewat OTP setiap
+buka aplikasi terlalu merepotkan untuk warung.
+
+Kalau nanti ingin menambah kunci layar berupa PIN, sadari batasnya sejak awal:
+tanpa backend, PIN tidak mungkin ditukar jadi sesi Firebase, jadi ia hanya
+gembok di atas sesi yang sudah hidup, bukan faktor autentikasi.
+
+**`initializeAuth` dipakai, bukan `getAuth`.** Konsekuensinya
+`popupRedirectResolver` harus disebut sendiri; tanpa itu login Google gagal
+diam diam.
+
 **Form produk tidak pernah mengirim `stock`.** Modal bisa terbuka beberapa menit
 sementara penjualan terus jalan; mengirim nilai stok dari form akan menghapus
 penjualan yang terjadi di sela itu. Stok hanya berubah lewat `addStock`,
@@ -301,6 +386,20 @@ sendiri.
   `index.css`, bukan membuka jendela baru, supaya jalan di printer termal murah.
 - Enter di kolom pencarian kasir menambahkan satu satunya hasil yang cocok. Itu
   yang membuat pemindai barcode USB bekerja.
+- Masuk lewat nomor HP wajib melewati reCAPTCHA, termasuk untuk nomor uji.
+  `RecaptchaVerifier.clear()` melempar `auth/internal-error` kalau dipanggil dua
+  kali, dan dua pemanggil yang sama sama benar memang memanggilnya dua kali, jadi
+  `cleanup` di `src/lib/phoneAuth.ts` dibuat tahan dipanggil berkali kali. Tanpa
+  itu seluruh aplikasi kosong tepat setelah kode yang benar dimasukkan.
+- Nomor HP disimpan dalam format E.164 (`+6285…`) di mana mana, dan hanya
+  ditampilkan sebagai `0851…`. Konversinya cuma di `src/lib/phone.ts`.
+- Nomor uji didaftarkan di Firebase Console, menu Authentication, Sign-in method,
+  Phone, Phone numbers for testing. Nomor uji tidak mengirim SMS dan tidak
+  memakai kuota.
+- Browser headless membuat reCAPTCHA menaikkan tantangan gambar, jadi login HP
+  tidak bisa diotomasi apa adanya. Saklar resminya
+  `auth.settings.appVerificationDisabledForTesting`, dan itu diset dari luar
+  lewat modul yang sama, bukan ditanam di kode aplikasi.
 
 ## Bahasa
 

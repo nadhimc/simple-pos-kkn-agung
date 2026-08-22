@@ -19,12 +19,12 @@ flowchart LR
 
   subgraph sec["Rahasia, tidak boleh bocor"]
     S1["serviceAccountKey.json"]
-    S2["Kata sandi akun staf"]
+    S2["Kata sandi akun pengguna"]
   end
 
   subgraph guard["Yang menjaga"]
     G1["firestore.rules"]
-    G2["Dokumen staff/uid"]
+    G2["Dokumen users/uid<br/>beserta tenantId"]
   end
 
   pub -.->|"tidak melindungi apa pun"| guard
@@ -48,10 +48,13 @@ dan hanya dipakai `scripts/seed.mjs` yang dijalankan manual.
 | Ancaman | Kemungkinan | Yang menahan | Sisa risiko |
 | --- | --- | --- | --- |
 | Orang asing menebak URL aplikasi | Tinggi | Guard rute lalu Security Rules | Tidak ada, data tidak terbaca |
-| Pemilik akun Google acak menekan "Masuk dengan Google" | **Tinggi** | Dokumen `staff/{uid}` wajib ada | Tidak ada, semua koleksi menolak |
+| Pemilik akun Google atau nomor HP acak berhasil autentikasi | **Tinggi** | Dokumen `users/{uid}` wajib ada | Tidak ada, semua koleksi menolak |
+| Orang warung membaca pembukuan warung tetangga | **Tinggi** | Tenant ada di jalur dokumen, `isMemberOf(tenantId)` | Tidak ada, jalur lain ditolak server |
+| Akun admin platform bocor | Sedang | Admin tidak diberi akses ke subkoleksi tenant mana pun | Daftar warung dan pengguna terbuka, pembukuan tidak |
 | Penyerang memanggil Firestore REST langsung, melewati aplikasi | Sedang | Security Rules, tidak bergantung pada klien | Tidak ada |
 | Kasir mengubah laba transaksi lama | Sedang | `allow update: if false` pada `sales` | Bisa menghapus lalu input ulang, dan itu tercatat sebagai hilangnya struk |
-| Kasir mendaftarkan dirinya jadi pemilik | Rendah | `staff` `allow write: if false` | Tidak ada dari aplikasi |
+| Orang warung mendaftarkan dirinya atau orang lain | Rendah | `users` hanya bisa ditulis `isAdmin()` | Tidak ada dari aplikasi |
+| Siapa pun mengangkat dirinya jadi admin platform | Rendah | `isValidUser()` menolak peran `admin` | Tidak ada, admin hanya lahir dari skrip seed |
 | Oversell stok dari dua perangkat | Rendah | Rules menolak stok negatif | Batch ditolak, transaksi gagal dan harus diulang |
 | `serviceAccountKey.json` ter-commit | Rendah | Tiga pola `.gitignore` | Total kalau sampai lolos, harus dicabut di Console |
 | Penulisan offline oleh akun yang aksesnya dicabut | Rendah | Rules memeriksa saat sinkron | Data di-rollback diam diam, kasir tidak diberi tahu |
@@ -66,15 +69,15 @@ flowchart TD
   REQ(["Permintaan ke Firestore"]) --> L1
 
   subgraph L1["Lapis 1: guard rute, di klien"]
-    A1["RequireAuth,<br/>RedirectIfAuthenticated"]
+    A1["RequireAuth, RedirectIfAuthenticated,<br/>RequireAdmin, RequireTenantUser"]
   end
 
-  subgraph L2["Lapis 2: pemeriksaan staf, di klien"]
-    A2["AuthContext getStaffProfile"]
+  subgraph L2["Lapis 2: pemeriksaan pendaftaran, di klien"]
+    A2["AuthContext getAppUser"]
   end
 
   subgraph L3["Lapis 3: Security Rules, di server"]
-    A3["isStaff() + validasi bentuk data"]
+    A3["isMemberOf() atau isAdmin()<br/>+ validasi bentuk data"]
   end
 
   L1 --> L2 --> L3 --> DB[("Firestore")]
@@ -93,45 +96,88 @@ dengan alasan "supaya lebih cepat". Keduanya bukan keamanan.
 
 ## Pembedahan Security Rules
 
-### Gerbang `isStaff()`
+### Tiga gerbang
 
 ```javascript
-function isStaff() {
-  return request.auth != null
-    && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
+function isActive() {
+  return isRegistered() && me().active == true;
+}
+
+function isAdmin() {
+  return isActive() && me().role == 'admin';
+}
+
+function isMemberOf(tenantId) {
+  return isActive() && me().tenantId == tenantId;
 }
 ```
+
+`me()` adalah `get()` ke `users/{request.auth.uid}`, dibaca **di server**. Itu
+sebabnya `tenantId` tidak bisa dipalsukan: browser tidak pernah menyebutkannya,
+aturan yang mengambilnya sendiri.
 
 ```mermaid
 flowchart TD
   R(["Permintaan masuk"]) --> A{"request.auth != null?"}
   A -->|"tidak"| D1["DITOLAK<br/>belum autentikasi"]
-  A -->|"ya"| B{"dokumen staff/uid ada?"}
-  B -->|"tidak"| D2["DITOLAK<br/>terautentikasi tapi bukan staf"]
-  B -->|"ya"| C["LOLOS ke validasi bentuk data"]
+  A -->|"ya"| B{"users/uid ada?"}
+  B -->|"tidak"| D2["DITOLAK<br/>terautentikasi tapi belum terdaftar"]
+  B -->|"ya"| C{"active == true?"}
+  C -->|"tidak"| D3["DITOLAK<br/>aksesnya dicabut sementara"]
+  C -->|"ya"| E{"jalur yang diminta"}
+
+  E -->|"tenants/{id}/..."| F{"users.tenantId == id?"}
+  F -->|"tidak"| D4["DITOLAK<br/>warung orang lain"]
+  F -->|"ya"| OK1["LOLOS ke validasi bentuk data"]
+
+  E -->|"users atau tenants"| G{"role == 'admin'?"}
+  G -->|"tidak"| D5["DITOLAK<br/>bukan admin platform"]
+  G -->|"ya"| OK2["LOLOS"]
 
   classDef no fill:#b91c1c,stroke:#b91c1c,color:#ffffff
   classDef ok fill:#047857,stroke:#047857,color:#ffffff
-  class D1,D2 no
-  class C ok
+  class D1,D2,D3,D4,D5 no
+  class OK1,OK2 ok
 ```
 
-Cabang `D2` adalah alasan seluruh mekanisme ini ada. Sebelum Google Sign-In,
-pemilik toko sendiri yang membuat setiap akun sehingga "sudah login" berarti
-"orang toko". Setelah Google aktif, asumsi itu runtuh.
+Cabang `D2` adalah alasan seluruh mekanisme ini ada. Kalau setiap akun dibuat
+pemilik toko sendiri, "sudah login" berarti "orang toko". Dengan Google dan nomor
+HP terbuka untuk siapa saja, asumsi itu runtuh.
 
-> `exists()` menambah satu operasi baca per evaluasi aturan. Untuk warung satu
-> gerai jumlahnya tidak berarti, tapi perlu diingat kalau kelak ada kueri yang
-> membaca ribuan dokumen sekaligus.
+Cabang `D4` adalah sekat antar warung, dan ia bekerja karena tenant ada di jalur
+dokumen. Lihat [Multi Warung](./multi-warung.md#tenant-sebagai-jalur-bukan-field).
+
+> `exists()` dan `get()` menambah operasi baca per evaluasi aturan. Untuk warung
+> satu gerai jumlahnya tidak berarti, tapi perlu diingat kalau kelak ada kueri
+> yang membaca ribuan dokumen sekaligus.
 
 ### Matriks izin
 
-| Koleksi | read | create | update | delete |
+Untuk ringkasnya, "warga" berarti `isMemberOf(tenantId)`, yaitu orang warung itu
+sendiri, dan "admin" berarti `isAdmin()`.
+
+| Jalur | read | create | update | delete |
 | --- | --- | --- | --- | --- |
-| `staff` | pemilik uid itu sendiri | tidak pernah | tidak pernah | tidak pernah |
-| `products` | staf | staf + validasi | staf + validasi | staf |
-| `sales` | staf | staf + validasi + `cashierId == uid` | **tidak pernah** | staf |
-| `expenses` | staf | staf + validasi | staf + validasi | staf |
+| `users/{uid}` | uid itu sendiri, atau admin | admin + validasi | admin + validasi | admin, kecuali barisnya sendiri |
+| `tenants/{id}` | warga, atau admin | admin | admin | admin |
+| `tenants/{id}/products` | warga | warga + validasi | warga + validasi | warga |
+| `tenants/{id}/recipes` | warga | warga + validasi | warga + validasi | warga |
+| `tenants/{id}/productions` | warga | warga + validasi + `operatorId == uid` | **tidak pernah** | warga |
+| `tenants/{id}/sales` | warga | warga + validasi + `cashierId == uid` | **tidak pernah** | warga |
+| `tenants/{id}/expenses` | warga | warga + validasi | warga + validasi | warga |
+
+**Perhatikan bahwa `admin` tidak muncul sama sekali di lima baris terakhir.**
+Ketiadaan itulah jaminannya: satu akun admin yang bocor tidak berarti seluruh
+pembukuan semua warung ikut terbuka. Jangan menambahkannya tanpa alasan baru yang
+kuat.
+
+Dua pengecualian kecil punya alasannya masing masing. Admin tidak boleh menghapus
+barisnya sendiri, karena platform bisa kehilangan admin terakhirnya dan tidak ada
+cara memulihkannya dari dalam aplikasi. Dan membaca `users/{uid}` sendiri
+sengaja terbuka bagi siapa pun yang sudah login, karena orang yang belum
+terdaftar perlu mendapat jawaban "tidak ada" supaya bisa ditolak dengan pesan
+yang benar; kalau permintaannya ditolak aturan, klien membacanya sebagai
+gangguan jaringan.
 
 ### Kenapa `sales` tidak bisa diedit
 
@@ -181,11 +227,13 @@ di Firebase Console yang tidak butuh perkakas lokal sama sekali.
 
 ```mermaid
 flowchart TD
-  A["Console > Firestore > Rules<br/>> Rules Playground"] --> B["Jalankan 4 kasus"]
-  B --> C1["get /products/x, tanpa auth<br/>harus Denied"]
-  B --> C2["get /products/x, uid acak<br/>harus Denied"]
-  B --> C3["get /products/x, uid staf<br/>harus Allowed"]
-  B --> C4["get /staff/uid_lain, uid staf<br/>harus Denied"]
+  A["Console > Firestore > Rules<br/>> Rules Playground"] --> B["Jalankan 6 kasus"]
+  B --> C1["tenants/A/products/x, tanpa auth<br/>harus Denied"]
+  B --> C2["tenants/A/products/x, uid acak<br/>harus Denied"]
+  B --> C3["tenants/A/products/x, uid warga A<br/>harus Allowed"]
+  B --> C4["tenants/B/products/x, uid warga A<br/>harus Denied"]
+  B --> C5["tenants/A/products/x, uid admin<br/>harus Denied"]
+  B --> C6["users/uid_lain, uid warga A<br/>harus Denied"]
 
   C2 --> D{"Hasilnya Allowed?"}
   D -->|"ya"| E["Aturan BELUM terpasang.<br/>Ulangi Publish."]
@@ -204,7 +252,7 @@ cukup untuk membaca data toko.
 
 | Gejala | Penyebab | Perbaikan |
 | --- | --- | --- |
-| Semua kueri kena `permission-denied` walau sudah masuk | Dokumen `staff/{uid}` belum dibuat, atau id dokumennya id otomatis, bukan uid | Buat ulang dengan id dokumen = uid Auth |
+| Semua kueri kena `permission-denied` walau sudah masuk | Dokumen `users/{uid}` belum dibuat, id dokumennya id otomatis dan bukan uid, `active` bernilai false, atau `tenantId`-nya menunjuk warung yang sudah tidak ada | Periksa barisnya di halaman Pengguna |
 | Aturan sudah diubah di repo tapi Firestore masih menolak | Rules tidak ikut ter-deploy lewat Vercel | `firebase deploy --only firestore:rules` |
 | Login Google gagal di produksi tapi berhasil di localhost | Domain Vercel belum terdaftar | Console > Authentication > Settings > Authorized domains |
 | Aplikasi bisa dibuka siapa saja | Firestore masih memakai aturan mode uji bawaan | Terapkan `firestore.rules` |
@@ -213,7 +261,8 @@ cukup untuk membaca data toko.
 
 1. Firebase Console > Project settings > Service accounts, **hapus kunci itu**.
 2. Buat kunci baru untuk pemakaian yang sah.
-3. Periksa Firestore untuk dokumen yang tidak dikenal, terutama koleksi `staff`.
+3. Periksa Firestore untuk dokumen yang tidak dikenal, terutama koleksi `users`:
+   baris asing di sana berarti akses ke salah satu warung.
 4. Kalau kuncinya pernah ter-commit, menghapusnya dari commit terbaru tidak cukup
    karena ia masih ada di history. Kunci harus dicabut di Console.
 

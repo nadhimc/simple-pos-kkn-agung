@@ -1,7 +1,11 @@
 # Dokumentasi Teknis Warungku POS
 
-Dokumentasi rancangan dan cara kerja aplikasi kasir untuk UMKM ini. Ditujukan
+Dokumentasi rancangan dan cara kerja layanan kasir untuk UMKM ini. Ditujukan
 untuk pengembang yang akan meneruskan, mengaudit, atau memperbaiki proyeknya.
+
+Satu pemasangan melayani banyak warung. Kalau baru pertama kali membaca, mulai
+dari [Multi Warung](./multi-warung.md): itu yang membentuk hampir semua
+keputusan lain.
 
 Semua diagram ditulis dengan [Mermaid](https://mermaid.js.org) dan langsung
 tergambar di GitHub, GitLab, VS Code, dan Obsidian tanpa perkakas tambahan.
@@ -10,9 +14,10 @@ tergambar di GitHub, GitLab, VS Code, dan Obsidian tanpa perkakas tambahan.
 
 | Dokumen | Isi | Baca kalau ingin tahu |
 | --- | --- | --- |
+| [Multi Warung](./multi-warung.md) | Model tenant, dua dunia, pendaftaran pengguna, sesi | Bagaimana satu aplikasi melayani banyak warung tanpa saling bocor |
 | [Arsitektur](./arsitektur.md) | Konteks sistem, lapisan kode, topologi deployment, alur data real time | Bentuk besar sistemnya seperti apa dan kenapa tanpa backend |
 | [Model Data](./model-data.md) | ERD, skema tiap koleksi, contoh dokumen, alasan denormalisasi | Data disimpan seperti apa di Firestore |
-| [Autentikasi & Otorisasi](./autentikasi.md) | Sequence login, gerbang staf, penjagaan rute, state sesi | Siapa boleh masuk dan bagaimana dijaga |
+| [Autentikasi & Otorisasi](./autentikasi.md) | Sequence login nomor HP dan email, gerbang pengguna, penjagaan rute, state sesi | Siapa boleh masuk dan bagaimana dijaga |
 | [Produksi & HPP](./produksi.md) | Bahan baku vs barang jadi, resep, konversi satuan, alur produksi | Bagaimana harga pokok produk olahan dihitung |
 | [Alur Kasir](./alur-kasir.md) | Flowchart transaksi, penulisan batch, perilaku offline, pembatalan | Bagaimana satu penjualan diproses dari klik sampai struk |
 | [Akuntansi](./akuntansi.md) | Rumus laba rugi, pengakuan HPP, contoh perhitungan | Angka laporan datang dari mana |
@@ -33,8 +38,8 @@ flowchart LR
   end
 
   subgraph firebase["Firebase"]
-    AUTH["Authentication<br/>Email + Google"]
-    FS[("Cloud Firestore<br/>staff, products, recipes,<br/>productions, sales, expenses")]
+    AUTH["Authentication<br/>Nomor HP + Email + Google"]
+    FS[("Cloud Firestore<br/>users, tenants,<br/>tenants/{id}/produk, resep,<br/>produksi, penjualan, beban")]
     RULES["Security Rules"]
   end
 

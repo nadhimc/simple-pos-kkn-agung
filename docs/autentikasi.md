@@ -7,11 +7,71 @@ Dua hal yang sering dianggap satu, padahal berbeda dan ditangani terpisah:
 | Lapisan | Menjawab | Ditangani oleh |
 | --- | --- | --- |
 | Autentikasi | Siapa orang ini | Firebase Authentication |
-| Otorisasi | Boleh apa orang ini | Dokumen `staff/{uid}` + Security Rules |
+| Otorisasi | Boleh apa orang ini, di warung mana | Dokumen `users/{uid}` + Security Rules |
 
-**Lolos autentikasi tidak berarti lolos otorisasi.** Sejak Google Sign-In aktif,
-pemilik akun Google mana pun bisa membuktikan identitasnya. Yang menentukan boleh
-tidaknya menyentuh data toko adalah keberadaan dokumen `staff/{uid}`.
+**Lolos autentikasi tidak berarti lolos otorisasi.** Pemilik akun Google mana pun
+bisa membuktikan identitasnya, begitu juga pemilik nomor HP mana pun. Yang
+menentukan boleh tidaknya menyentuh data, dan data warung yang mana, adalah
+dokumen `users/{uid}` beserta `tenantId` di dalamnya.
+
+Ada tiga metode masuk. Nomor HP didahulukan di layar dan dua sisanya
+disembunyikan di balik satu tautan, karena pemilik warung menghafal nomornya
+sendiri, tidak selalu punya email, dan tidak perlu memilih apa apa.
+
+| Metode | Untuk siapa | Catatan |
+| --- | --- | --- |
+| Nomor HP (OTP) | Orang warung | Butuh reCAPTCHA, kode enam angka lewat SMS |
+| Email dan kata sandi | Admin platform, dan orang warung yang dibuatkan admin | Tidak butuh reCAPTCHA |
+| Google | Akun yang sudah ada | Tidak bisa dibuatkan admin, harus sign-in sendiri dulu |
+
+## Alur masuk dengan nomor HP
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as Pemilik warung
+  participant LP as LoginPage
+  participant AC as AuthContext
+  participant PA as lib/phoneAuth
+  participant RC as reCAPTCHA
+  participant FA as Firebase Auth
+
+  U->>LP: ketik 0851 5665 7853, tekan Kirim kode
+  LP->>LP: toE164 jadi +6285156657853
+  LP->>AC: requestPhoneCode(nomor, wadah)
+  AC->>PA: requestOtp(auth, nomor, wadah)
+  PA->>RC: RecaptchaVerifier invisible
+  RC-->>PA: token
+  PA->>FA: signInWithPhoneNumber
+  FA-->>PA: ConfirmationResult
+  PA-->>LP: { confirmation, cleanup }
+  LP-->>U: kolom Kode OTP muncul
+
+  U->>LP: ketik enam angka
+  LP->>AC: confirmPhoneCode(challenge, kode)
+  AC->>FA: confirmation.confirm(kode)
+
+  alt kode salah
+    FA-->>AC: auth/invalid-verification-code
+    AC-->>LP: throw
+    LP-->>U: "Kode OTP salah. Periksa lagi angkanya."
+  else kode benar
+    FA-->>AC: User
+    Note over AC: lanjut ke pemeriksaan pendaftaran di bawah
+  end
+```
+
+**Nomor selalu disimpan dalam E.164** (`+6285…`) dan hanya ditampilkan sebagai
+`0851…`. Konversinya cuma ada di [`src/lib/phone.ts`](../src/lib/phone.ts),
+supaya tidak ada layar yang menebak sendiri lalu mengirim nomor yang salah.
+
+**Pembersihan reCAPTCHA harus tahan dipanggil berkali kali.**
+`RecaptchaVerifier.clear()` melempar `auth/internal-error` kalau verifiernya
+sudah dibuang, dan dua pemanggil yang sama sama benar memang memanggilnya dua
+kali: alur OTP membersihkan setelah kodenya dipakai, lalu React membersihkan
+sekali lagi saat layarnya dilepas. Lemparan kedua itu terjadi di dalam cleanup
+efek, jadi tidak ada yang menangkapnya dan seluruh aplikasi ikut kosong tepat
+setelah kode yang benar dimasukkan.
 
 ## Alur masuk dengan email dan kata sandi
 
@@ -22,7 +82,7 @@ sequenceDiagram
   participant LP as LoginPage
   participant AC as AuthContext
   participant FA as Firebase Auth
-  participant SS as services/staff
+  participant SU as services/users
   participant FS as Firestore
   participant RG as RedirectIfAuthenticated
 
@@ -40,31 +100,37 @@ sequenceDiagram
     FA-->>AC: User
     FA->>AC: onAuthStateChanged(user)
     Note over LP: submitting tetap true,<br/>tombol masih berputar
-    AC->>SS: getStaffProfile(uid)
-    SS->>FS: getDoc(staff/uid)
+    AC->>SU: getAppUser(uid)
+    SU->>FS: getDoc(users/uid)
 
-    alt dokumen staf tidak ada
-      FS-->>SS: tidak ada
-      SS-->>AC: null
+    alt belum terdaftar
+      FS-->>SU: tidak ada
+      SU-->>AC: null
       AC->>AC: setAccessError(pesan berisi uid)
       AC->>FA: signOut()
       FA->>AC: onAuthStateChanged(null)
       AC-->>LP: user null, accessError terisi
       LP->>LP: efek accessError, submitting = false
       LP-->>U: "Akun belum terdaftar" beserta uid
-    else dokumen staf ada
-      FS-->>SS: StaffProfile
-      SS-->>AC: profile
-      AC->>AC: setUser, setStaff
+    else terdaftar dan aktif
+      FS-->>SU: AppUser
+      SU-->>AC: { role, tenantId, active }
+      AC->>FS: getTenant(tenantId)
+      FS-->>AC: Tenant
+      AC->>AC: setUser, setAppUser, setTenant
       AC-->>RG: user terisi
-      RG-->>U: pindah ke /kasir
+      RG-->>U: pindah ke /kasir atau /admin
     end
   end
 ```
 
 Perhatikan langkah setelah kredensial diterima: **`submitting` sengaja tidak
-direset**. Pemeriksaan staf masih berjalan, dan kalau tombol berhenti berputar di
-situ, kasir akan mengira klik pertamanya gagal lalu menekannya lagi.
+direset**. Pemeriksaan pendaftaran masih berjalan, dan kalau tombol berhenti
+berputar di situ, kasir akan mengira klik pertamanya gagal lalu menekannya lagi.
+
+Tujuan setelah masuk berbeda menurut perannya: orang warung mendarat di layar
+kasir, admin platform di daftar warung. Kalau sebelumnya ada tautan dalam yang
+dituju, tautan itulah yang dipulihkan.
 
 ## Alur masuk dengan Google
 
@@ -76,7 +142,7 @@ sequenceDiagram
   participant AC as AuthContext
   participant Pop as Jendela popup Google
   participant FA as Firebase Auth
-  participant SS as services/staff
+  participant SS as services/users
 
   U->>LP: klik "Masuk dengan Google"
   LP->>AC: signInWithGoogle()
@@ -98,7 +164,7 @@ sequenceDiagram
   else akun dipilih
     Pop-->>FA: kredensial
     FA->>AC: onAuthStateChanged(user)
-    AC->>SS: getStaffProfile(uid)
+    AC->>SS: getAppUser(uid)
     Note over AC,SS: lanjut sama persis seperti alur email
   end
 ```
@@ -118,20 +184,21 @@ stateDiagram-v2
   Memulihkan --> MemeriksaStaf: onAuthStateChanged(user)
 
   TanpaSesi --> MemeriksaStaf: kredensial diterima
-  MemeriksaStaf --> Masuk: dokumen staff ada
-  MemeriksaStaf --> Ditolak: dokumen staff tidak ada
-  MemeriksaStaf --> MasukTanpaProfil: pemeriksaan gagal, jaringan
+  MemeriksaStaf --> Masuk: baris users ada dan aktif
+  MemeriksaStaf --> Ditolak: belum terdaftar, atau dinonaktifkan
+  MemeriksaStaf --> GagalMemuatProfil: pemeriksaan gagal, jaringan
 
   Ditolak --> TanpaSesi: signOut otomatis,<br/>accessError terisi
   Masuk --> TanpaSesi: pengguna menekan Keluar
-  MasukTanpaProfil --> TanpaSesi: pengguna menekan Keluar
+  GagalMemuatProfil --> MemeriksaStaf: tekan "Coba lagi"
+  GagalMemuatProfil --> TanpaSesi: pengguna menekan Keluar
 
-  note right of MasukTanpaProfil
-    Gagal terbuka saat offline.
+  note right of GagalMemuatProfil
+    Sesinya TIDAK diputus.
     Kasir tidak dilempar keluar
-    di tengah jualan. Aman karena
-    Security Rules tetap menolak
-    di sisi server.
+    di tengah jualan, tapi layarnya
+    juga tidak digambar tanpa tahu
+    warung mana yang dimaksud.
   end note
 
   note right of Memulihkan
@@ -141,35 +208,57 @@ stateDiagram-v2
   end note
 ```
 
-### Kenapa gagal terbuka, bukan gagal tertutup
+### Kalau profilnya gagal dibaca
 
-Kalau `getStaffProfile` melempar error karena jaringan mati, kode **tetap
-mempertahankan sesi**.
+`getAppUser` bisa melempar error, hampir selalu karena jaringan. Ada tiga pilihan
+rancangan, dan yang dipakai adalah yang ketiga.
 
 ```mermaid
 flowchart TD
-  A["getStaffProfile gagal"] --> B{"Pilihan rancangan"}
-  B -->|"gagal tertutup:<br/>signOut"| C["Kasir terlempar keluar<br/>saat internet warung putus"]
-  B -->|"gagal terbuka:<br/>sesi dipertahankan"| D["Kasir tetap bisa melayani"]
+  A["getAppUser gagal"] --> B{"Pilihan rancangan"}
 
-  C --> E["Tidak bisa berjualan.<br/>Kerugian nyata."]
-  D --> F["Bisa membaca cache lokal.<br/>Tulisan ke server tetap<br/>diperiksa Security Rules."]
+  B -->|"1. signOut"| C["Kasir terlempar keluar<br/>saat internet warung putus"]
+  C --> C1["Tidak bisa berjualan.<br/>Kerugian nyata."]
 
-  F --> G["Tidak ada data bocor:<br/>rules memeriksa staff/uid<br/>yang sama di server"]
+  B -->|"2. biarkan masuk<br/>tanpa profil"| D["Aplikasi digambar<br/>tanpa tahu warung mana"]
+  D --> D1["Seluruh kueri melempar,<br/>layar kosong tanpa penjelasan"]
+
+  B -->|"3. pertahankan sesi,<br/>tampilkan layar coba lagi"| E["Sesi utuh,<br/>keadaannya terbaca"]
+  E --> E1["Sekali sambungan pulih,<br/>satu tombol dan lanjut jualan"]
 
   classDef bad fill:#b91c1c,stroke:#b91c1c,color:#ffffff
   classDef good fill:#047857,stroke:#047857,color:#ffffff
-  class E bad
-  class G good
+  class C1,D1 bad
+  class E1 good
 ```
 
-Pemeriksaan staf di klien hanya untuk pengalaman pengguna. Lapisan keamanan yang
+Pilihan kedua dulu masuk akal ketika koleksinya masih datar: sesi cukup untuk
+membaca cache lokal. Sejak data pindah ke bawah warungnya masing masing, itu
+tidak berlaku lagi, karena tanpa `tenantId` tidak ada jalur yang bisa dibaca.
+
+Dalam praktiknya pilihan ketiga jarang terlihat: `getDoc` jatuh ke cache
+persisten saat offline, jadi profil yang pernah dibaca tetap terbaca tanpa
+jaringan.
+
+Pemeriksaan di klien tetap hanya untuk pengalaman pengguna. Lapisan keamanan yang
 sesungguhnya ada di `firestore.rules`, dan itu tidak bisa dilewati dari browser.
 
 ## Penjagaan rute
 
 Dijaga di tingkat rute, bukan di dalam komponen halaman. Kodenya di
 [`src/components/routing/AuthGuards.tsx`](../src/components/routing/AuthGuards.tsx).
+
+| Gerbang | Menjaga | Memantulkan ke |
+| --- | --- | --- |
+| `RequireAuth` | seluruh aplikasi | `/masuk` |
+| `RedirectIfAuthenticated` | `/masuk` | tujuan tersimpan, atau landing perannya |
+| `RequireTenantUser` | halaman warung | `/admin` |
+| `RequireAdmin` | halaman platform | `/kasir` |
+
+Dua gerbang terakhir memisahkan admin platform dari orang warung. Pemisahannya
+bukan sekadar menyembunyikan menu: `firestore.rules` menegakkan batas yang sama
+di server, jadi admin yang memaksa membuka `/laporan` tetap tidak mendapat satu
+angka pun. Lihat [Multi Warung](./multi-warung.md#dua-dunia).
 
 ```mermaid
 flowchart TD
@@ -231,7 +320,7 @@ State navigasi tidak bisa diisi lewat URL, tapi tetap divalidasi:
 ```mermaid
 flowchart TD
   IN["state.from"] --> C1{"ada dan pathname string?"}
-  C1 -->|"tidak"| DEF["AUTH_LANDING = /kasir"]
+  C1 -->|"tidak"| DEF["landing perannya:<br/>/kasir, atau /admin"]
   C1 -->|"ya"| BUILD["gabung pathname + search + hash"]
   BUILD --> C2{"diawali satu garis miring?"}
   C2 -->|"tidak"| DEF

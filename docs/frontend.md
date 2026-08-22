@@ -16,9 +16,11 @@ src/
       Sidebar.tsx         navigasi, rail ciut, drawer ponsel
       Header.tsx          judul halaman, tema, menu pengguna
       BrandMark.tsx       monogram nama toko
-      navigation.ts       SATU SUMBER KEBENARAN daftar menu
+      navigation.ts       SATU SUMBER KEBENARAN daftar menu,
+                          tenantNavigation dan adminNavigation
     routing/
-      AuthGuards.tsx      RequireAuth, RedirectIfAuthenticated
+      AuthGuards.tsx      RequireAuth, RedirectIfAuthenticated,
+                          RequireAdmin, RequireTenantUser
     ui/                   kit komponen bebas domain
 
   features/               komponen yang tahu domain
@@ -75,7 +77,7 @@ sendiri, sehingga ia tidak bisa memakai pembungkus standar.
 
 ```mermaid
 flowchart TD
-  S(["Ingin menambah halaman, misal Pelanggan"]) --> A["1. Tambah entri di<br/>components/layout/navigation.ts"]
+  S(["Ingin menambah halaman, misal Pelanggan"]) --> A["1. Tambah entri di navigation.ts,<br/>tenantNavigation atau adminNavigation"]
   A --> A1["path, label, description,<br/>icon Phosphor, fullBleed opsional"]
   A1 --> B["2. Daftarkan Route di App.tsx<br/>di dalam AppShell"]
   B --> B1["path harus sama persis<br/>dengan navigation.ts"]
@@ -85,7 +87,7 @@ flowchart TD
   D --> R1["Sidebar otomatis"]
   D --> R2["Judul header otomatis"]
   D --> R3["Judul tab browser otomatis"]
-  D --> R4["Terlindungi RequireAuth otomatis"]
+  D --> R4["Terlindungi RequireAuth otomatis,<br/>plus RequireAdmin atau RequireTenantUser<br/>sesuai daftarnya"]
   D --> R5["Lazy loading + skeleton otomatis"]
 
   X["Yang TIDAK perlu disentuh:<br/>Sidebar.tsx, Header.tsx,<br/>AppShell.tsx, AuthGuards.tsx"]

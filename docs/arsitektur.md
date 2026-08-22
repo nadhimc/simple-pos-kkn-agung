@@ -88,7 +88,7 @@ flowchart TD
   end
 
   subgraph data["services/ — satu satunya pintu ke Firestore"]
-    S["products.ts, sales.ts, expenses.ts,<br/>recipes.ts, productions.ts, staff.ts"]
+    S["products.ts, sales.ts, expenses.ts,<br/>recipes.ts, productions.ts,<br/>users.ts, tenants.ts, paths.ts"]
   end
 
   FB[("Firebase SDK<br/>lib/firebase.ts")]

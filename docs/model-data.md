@@ -2,30 +2,64 @@
 
 [← Kembali ke indeks](./README.md)
 
-Enam koleksi di akar, tanpa subcollection. Definisi tipenya ada di
-[`src/types/index.ts`](../src/types/index.ts).
+Dua koleksi di akar, dan lima subkoleksi di bawah tiap warung. Definisi tipenya
+ada di [`src/types/index.ts`](../src/types/index.ts).
 
-Dua di antaranya, `recipes` dan `productions`, dibahas terpisah di
+```
+users/{uid}                          siapa boleh masuk, ke warung mana
+tenants/{tenantId}                   identitas warung
+tenants/{tenantId}/products/{id}
+tenants/{tenantId}/recipes/{id}
+tenants/{tenantId}/productions/{id}
+tenants/{tenantId}/sales/{id}
+tenants/{tenantId}/expenses/{id}
+```
+
+**Tenant adalah bagian dari jalur dokumen, bukan field di dalamnya**, dan itu
+keputusan keamanan, bukan kerapian. Alasannya di
+[Multi Warung](./multi-warung.md#tenant-sebagai-jalur-bukan-field). Jalurnya
+dirakit di [`src/services/paths.ts`](../src/services/paths.ts).
+
+Dua subkoleksi, `recipes` dan `productions`, dibahas terpisah di
 [Produksi & HPP](./produksi.md) berikut alasan rancangannya.
 
 ## Diagram relasi
 
 ```mermaid
 erDiagram
-  STAFF ||--o{ SALES : "mencatat"
-  STAFF ||--o{ EXPENSES : "mencatat"
-  STAFF ||--o{ PRODUCTIONS : "mencatat"
+  TENANTS ||--o{ USERS : "dibuka oleh"
+  TENANTS ||--o{ PRODUCTS : "memiliki"
+  TENANTS ||--o{ SALES : "memiliki"
+  TENANTS ||--o{ EXPENSES : "memiliki"
+  TENANTS ||--o{ RECIPES : "memiliki"
+  TENANTS ||--o{ PRODUCTIONS : "memiliki"
+  USERS ||--o{ SALES : "mencatat"
+  USERS ||--o{ EXPENSES : "mencatat"
+  USERS ||--o{ PRODUCTIONS : "mencatat"
   PRODUCTS ||..o{ RECIPE_ITEMS : "bahan dirujuk"
   RECIPES ||--|{ RECIPE_ITEMS : "memuat"
   RECIPES ||--o{ PRODUCTIONS : "dipakai"
   PRODUCTS ||..o{ SALE_ITEMS : "disalin saat terjual"
   SALES ||--|{ SALE_ITEMS : "memuat"
 
-  STAFF {
+  TENANTS {
+    string id PK "id otomatis, jadi bagian jalur"
+    string name "tercetak di struk"
+    string ownerName
+    string phone "E.164, catatan admin saja"
+    string address
+    timestamp createdAt
+    timestamp updatedAt
+  }
+
+  USERS {
     string uid PK "id dokumen, sama dengan uid Auth"
     string name
-    string email
-    string role "pemilik atau kasir"
+    string email "boleh kosong"
+    string phone "E.164, boleh kosong"
+    string role "admin, pemilik, atau kasir"
+    string tenantId FK "kosong hanya untuk admin"
+    boolean active "false berarti akses dicabut sementara"
     timestamp createdAt
   }
 
@@ -150,13 +184,16 @@ Tiga akibat yang harus diterima:
 
 ## Contoh dokumen
 
-### `staff/{uid}`
+### `users/{uid}`
 
 ```json
 {
   "name": "Bu Sri",
-  "email": "pemilik@toko.id",
+  "email": "",
+  "phone": "+6285156657853",
   "role": "pemilik",
+  "tenantId": "mfKHMqMi7ltobe3hVXqj",
+  "active": true,
   "createdAt": "2026-08-15T02:11:44.000Z"
 }
 ```
@@ -165,7 +202,14 @@ Id dokumen wajib sama persis dengan `uid` dari Firebase Authentication, karena
 Security Rules mencarinya lewat `request.auth.uid`. Id otomatis tidak akan
 pernah cocok.
 
-### `products/{id}`
+Salah satu dari `email` atau `phone` terisi, tergantung cara akunnya dibuat.
+Untuk akun yang didaftarkan lewat UID, keduanya boleh kosong: keduanya cuma
+untuk ditampilkan di daftar, bukan untuk mencocokkan apa pun.
+
+`tenantId` kosong hanya untuk `role: "admin"`. Admin platform memang tidak punya
+warung, dan tidak boleh punya.
+
+### `tenants/{tenantId}/products/{id}`
 
 ```json
 {
@@ -183,7 +227,7 @@ pernah cocok.
 }
 ```
 
-### `sales/{id}`
+### `tenants/{tenantId}/sales/{id}`
 
 ```json
 {
@@ -226,7 +270,7 @@ pernah cocok.
 Perhatikan `totalCost` 43.000 berasal dari `2 x 14500 + 5 x 2800`, dan
 `grossProfit` 7.000 dari `50000 - 43000`. Diskon menggerus laba, bukan HPP.
 
-### `expenses/{id}`
+### `tenants/{tenantId}/expenses/{id}`
 
 ```json
 {
@@ -263,7 +307,7 @@ flowchart LR
   Q1["products<br/>orderBy name"] --> I1["indeks otomatis"]
   Q2["sales<br/>where createdAt di rentang<br/>orderBy createdAt desc"] --> I2["indeks otomatis"]
   Q3["expenses<br/>where date di rentang<br/>orderBy date desc"] --> I3["indeks otomatis"]
-  Q4["staff<br/>getDoc by uid"] --> I4["tanpa indeks"]
+  Q4["users<br/>getDoc by uid"] --> I4["tanpa indeks"]
   Q5["recipes<br/>orderBy productName"] --> I5["indeks otomatis"]
   Q6["productions<br/>where createdAt di rentang<br/>orderBy createdAt desc"] --> I6["indeks otomatis"]
 
