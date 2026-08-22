@@ -136,7 +136,14 @@ export function CartPanel({ productsById, onCheckout }: CartPanelProps) {
           </div>
         </div>
 
-        <div className="mt-4 flex gap-2">
+        {/*
+          Grid, bukan flex. `fullWidth` menghasilkan `w-full`, dan di dalam baris
+          flex itu berarti 100% lebar BARIS, bukan sisa ruangnya: tombol Bayar
+          menuntut selebar seluruh baris sementara Kosongkan masih memakan
+          tempatnya sendiri, sehingga Bayar terdorong keluar layar. Di dalam sel
+          grid, `w-full` berarti selebar selnya, yang memang yang dimaksud.
+        */}
+        <div className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-2">
           <Button variant="secondary" onClick={clear}>
             Kosongkan
           </Button>
