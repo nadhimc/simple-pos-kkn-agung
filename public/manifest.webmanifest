@@ -1,0 +1,59 @@
+{
+  "id": "/",
+  "name": "IPANDAI Jugosari",
+  "short_name": "IPANDAI",
+  "description": "Sistem Informasi Pengelolaan Dana Desa Jugosari. Kasir, stok bahan baku dan barang jadi, perhitungan HPP, beban operasional, dan laporan laba rugi untuk unit usaha desa.",
+  "lang": "id",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#fafaf9",
+  "theme_color": "#047857",
+  "categories": ["business", "finance", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Kasir",
+      "short_name": "Kasir",
+      "description": "Catat penjualan dan cetak struk",
+      "url": "/kasir",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Laba Rugi",
+      "short_name": "Laba Rugi",
+      "description": "Omzet, HPP, dan laba bersih per periode",
+      "url": "/laporan",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

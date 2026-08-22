@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { displayNameOf, useAuth } from '@/contexts/AuthContext'
 import { Badge, Button, IconButton } from '@/components/ui'
 import { formatPhone } from '@/lib/phone'
+import { InstallAppButton } from './InstallAppButton'
 import type { NavItem } from './navigation'
 
 interface HeaderProps {
@@ -138,6 +139,8 @@ export function Header({ current, onOpenMobileNav }: HeaderProps) {
             Transaksi baru
           </Button>
         ) : null}
+
+        <InstallAppButton className="hidden sm:inline-flex" />
 
         <IconButton
           label={theme === 'dark' ? 'Gunakan mode terang' : 'Gunakan mode gelap'}

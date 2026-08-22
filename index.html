@@ -3,9 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafaf9" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#18181b" />
+    <!--
+      iOS tidak membaca manifest untuk mode layar penuh, jadi dua meta lawas ini
+      tetap diperlukan supaya ikon di layar utama membuka aplikasi tanpa bilah
+      alamat Safari.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="IPANDAI" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="description" content="IPANDAI Jugosari, Sistem Informasi Pengelolaan Dana Desa Jugosari. Kasir, stok, dan pembukuan untuk unit usaha desa." />
     <title>IPANDAI Jugosari</title>
     <script>
