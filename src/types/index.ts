@@ -62,6 +62,24 @@ export interface AppUser {
 export type AppUserDraft = Omit<AppUser, 'uid' | 'createdAt'>
 
 /**
+ * Undangan untuk satu nomor HP yang belum pernah masuk.
+ *
+ * Ada karena nomor HP tidak bisa didaftarkan sepihak: OTP-nya dikirim ke HP
+ * orangnya. Undangan memindahkan OTP itu ke saat orangnya masuk sendiri,
+ * sehingga admin tidak perlu ikut memegang HP-nya.
+ *
+ * Hilang dengan sendirinya begitu dipakai.
+ */
+export interface Invite {
+  /** Format E.164, sekaligus id dokumennya. */
+  phone: string
+  name: string
+  role: Exclude<UserRole, 'admin'>
+  tenantId: string
+  createdAt: Date | null
+}
+
+/**
  * Ringkasan angka satu unit usaha, dijaga oleh unit usahanya sendiri dan hanya
  * dibaca admin. Ada karena admin platform sengaja tidak diberi akses ke
  * subkoleksi unit usaha mana pun, sehingga ia tidak bisa menjumlahkan struk

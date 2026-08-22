@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   Button,
   Modal,
@@ -9,15 +9,13 @@ import {
 } from '@/components/ui'
 import { authErrorMessage } from '@/contexts/AuthContext'
 import {
-  beginPhoneRegistration,
-  completePhoneRegistration,
   createUserWithEmail,
   registerExistingUid,
   updateAppUser,
   UserProfileWriteError,
   type NewUserDraft,
 } from '@/services/users'
-import type { PhoneChallenge } from '@/lib/phoneAuth'
+import { createInvite } from '@/services/invites'
 import { writeErrorMessage } from '@/lib/errors'
 import { formatPhone, isValidPhone, toE164 } from '@/lib/phone'
 import type { AppUser, Tenant, UserRole } from '@/types'
@@ -64,35 +62,36 @@ export function UserFormModal({
   const [phone, setPhone] = useState('')
   const [uid, setUid] = useState('')
 
-  const [challenge, setChallenge] = useState<PhoneChallenge | null>(null)
-  const [code, setCode] = useState('')
-
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const recaptchaRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     setMode('hp')
     setError('')
     setSaving(false)
-    setChallenge(null)
-    setCode('')
     setPassword('')
     setUid('')
     setName(user?.name ?? '')
-    setTenantId(user?.tenantId ?? defaultTenantId ?? tenants[0]?.id ?? '')
+    /*
+      Unit usaha TIDAK dipilihkan otomatis saat ada lebih dari satu.
+
+      Sebelumnya form ini memakai unit pertama menurut abjad sebagai bawaan, dan
+      itu berarti admin yang tidak memperhatikan dropdown akan memasukkan orang
+      ke unit usaha yang salah tanpa satu pun tanda. Salah tempat seperti itu
+      baru ketahuan setelah orangnya membuka pembukuan yang bukan miliknya.
+
+      Kalau unitnya cuma satu, atau formnya dibuka dari baris unit tertentu di
+      halaman Unit Usaha, tidak ada yang ambigu jadi boleh dipilihkan.
+    */
+    setTenantId(
+      user?.tenantId ?? defaultTenantId ?? (tenants.length === 1 ? tenants[0].id : ''),
+    )
     setRole(user?.role ?? 'pemilik')
     setActive(user?.active ?? true)
     setEmail(user?.email ?? '')
     setPhone(user?.phone ?? '')
   }, [open, user, defaultTenantId, tenants])
-
-  // Widget reCAPTCHA yang ditinggalkan menumpuk di DOM dan membuat percobaan
-  // berikutnya gagal dengan pesan yang menyesatkan.
-  useEffect(() => {
-    return () => challenge?.cleanup()
-  }, [challenge])
 
   // Admin platform mengelola unit usaha, bukan menjalankannya, jadi barisnya
   // wajib tidak terikat unit usaha mana pun. Security Rules menolak baris admin
@@ -112,6 +111,12 @@ export function UserFormModal({
   function validate() {
     if (!name.trim()) return 'Nama wajib diisi.'
     if (!isAdminRole && !tenantId) return 'Pilih unit usaha dulu.'
+    // Undangan nomor HP membuat barisnya sendiri saat orangnya masuk, dan jalur
+    // itu sengaja tidak boleh menghasilkan admin. Ditolak di sini juga supaya
+    // perannya tidak diam diam diturunkan tanpa admin menyadarinya.
+    if (mode === 'hp' && isAdminRole) {
+      return 'Admin tidak bisa diundang lewat nomor HP. Pakai email atau UID.'
+    }
     if (mode === 'email' && !email.trim()) return 'Email wajib diisi.'
     if (mode === 'email' && password.length < 6)
       return 'Kata sandi minimal enam karakter.'
@@ -154,21 +159,25 @@ export function UserFormModal({
     try {
       if (mode === 'email') {
         await createUserWithEmail(draftOf(), password)
+        toast.success(`${name.trim()} didaftarkan.`)
       } else if (mode === 'uid') {
         await registerExistingUid(uid, { ...draftOf(), email: email.trim() })
-      } else if (!challenge) {
-        // Langkah pertama nomor HP: kirim OTP, lalu tunggu kodenya dibacakan.
-        if (!recaptchaRef.current) return
-        setChallenge(await beginPhoneRegistration(toE164(phone), recaptchaRef.current))
-        setCode('')
-        setSaving(false)
-        return
+        toast.success(`${name.trim()} didaftarkan.`)
       } else {
-        await completePhoneRegistration(challenge, code.trim(), draftOf())
-        setChallenge(null)
+        // Nomor HP tidak bisa didaftarkan sepihak, jadi yang disimpan adalah
+        // undangannya. Barisnya lahir sendiri saat orangnya masuk.
+        await createInvite({
+          phone: toE164(phone),
+          name: name.trim(),
+          // validate() sudah menolak peran admin untuk jalur ini.
+          role: role === 'pemilik' ? 'pemilik' : 'kasir',
+          tenantId,
+        })
+        toast.success(
+          `Undangan untuk ${formatPhone(toE164(phone))} disimpan. ${name.trim()} tinggal masuk pakai nomor itu.`,
+        )
       }
 
-      toast.success(`${name.trim()} didaftarkan.`)
       onClose()
     } catch (caught) {
       // Akun Auth-nya sudah jadi tapi barisnya gagal ditulis. Menyembunyikan ini
@@ -187,16 +196,17 @@ export function UserFormModal({
     }
   }
 
-  const tenantOptions = tenants.map((tenant) => ({
-    value: tenant.id,
-    label: tenant.name,
-  }))
+  const tenantOptions = [
+    // Pilihan kosong hanya ditawarkan kalau memang belum ada yang dipilih,
+    // supaya tidak ada cara mengosongkannya kembali secara tidak sengaja.
+    ...(tenantId ? [] : [{ value: '', label: 'Pilih unit usaha' }]),
+    ...tenants.map((tenant) => ({ value: tenant.id, label: tenant.name })),
+  ]
 
-  const waitingForCode = mode === 'hp' && Boolean(challenge)
   const submitLabel = user
     ? 'Simpan perubahan'
-    : mode === 'hp' && !challenge
-      ? 'Kirim kode'
+    : mode === 'hp'
+      ? 'Simpan undangan'
       : 'Daftarkan'
 
   return (
@@ -207,7 +217,7 @@ export function UserFormModal({
       description={
         user
           ? 'Email dan nomor HP tidak bisa diubah, karena itu identitas akunnya di Firebase.'
-          : 'Akun dibuat di sini, bukan dengan mendaftar sendiri. Untuk nomor HP, kodenya masuk ke HP orangnya.'
+          : 'Tidak ada pendaftaran mandiri. Semua berawal dari sini, termasuk undangan nomor HP.'
       }
       footer={
         <>
@@ -228,8 +238,6 @@ export function UserFormModal({
               aria-label="Cara masuk"
               value={mode}
               onChange={(next: Mode) => {
-                challenge?.cleanup()
-                setChallenge(null)
                 setError('')
                 setMode(next)
               }}
@@ -237,7 +245,7 @@ export function UserFormModal({
             />
             <p className="pt-2 text-xs text-ink-muted">
               {mode === 'hp'
-                ? 'Paling mudah untuk pemilik unit usaha. Kode enam angka dikirim ke HP-nya, lalu dibacakan ke Anda.'
+                ? 'Paling mudah, dan tidak perlu OTP di sini. Cukup tulis nomornya; orangnya masuk sendiri kapan saja dari HP-nya.'
                 : mode === 'email'
                   ? 'Akun dan kata sandinya dibuat di sini, lalu diberikan ke orangnya.'
                   : 'Untuk akun yang sudah pernah masuk, misalnya lewat Google. UID-nya ditampilkan halaman masuk saat ditolak.'}
@@ -299,30 +307,20 @@ export function UserFormModal({
         ) : null}
 
         {!user && mode === 'hp' ? (
-          <>
-            <TextField
-              label="Nomor HP"
-              type="tel"
-              inputMode="tel"
-              placeholder="0851 5665 7853"
-              required
-              disabled={waitingForCode}
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-            />
-            {waitingForCode ? (
-              <TextField
-                label="Kode OTP"
-                inputMode="numeric"
-                maxLength={6}
-                required
-                autoFocus
-                helper={`Minta pemilik nomor ${formatPhone(toE164(phone))} membacakan kodenya.`}
-                value={code}
-                onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
-              />
-            ) : null}
-          </>
+          <TextField
+            label="Nomor HP"
+            type="tel"
+            inputMode="tel"
+            placeholder="0851 5665 7853"
+            required
+            value={phone}
+            helper={
+              isValidPhone(toE164(phone))
+                ? `Disimpan sebagai ${toE164(phone)}`
+                : 'Boleh ditulis 0851…, 851…, atau +62851…. Semuanya diperlakukan sama.'
+            }
+            onChange={(event) => setPhone(event.target.value)}
+          />
         ) : null}
 
         {!user && mode === 'email' ? (
@@ -369,12 +367,6 @@ export function UserFormModal({
             {error}
           </p>
         ) : null}
-
-        {/*
-          reCAPTCHA tak terlihat. Wadahnya harus sudah ada di DOM sebelum
-          permintaan OTP dikirim, jadi tetap dirender walaupun kosong.
-        */}
-        <div ref={recaptchaRef} />
       </form>
     </Modal>
   )

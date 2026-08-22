@@ -21,8 +21,8 @@ import {
   type QueryDocumentSnapshot,
 } from 'firebase/firestore'
 import { app } from '@/lib/firebase'
-import { requestOtp, type PhoneChallenge } from '@/lib/phoneAuth'
 import { usersRef } from './paths'
+import { deleteInvite, getInvite } from './invites'
 import type { AppUser, UserRole } from '@/types'
 
 function mapUser(snapshot: QueryDocumentSnapshot<DocumentData>): AppUser {
@@ -169,33 +169,41 @@ export async function createUserWithEmail(draft: NewUserDraft, password: string)
   }
 }
 
-/* ----------------------------------------------------------- pendaftaran HP */
+/* -------------------------------------------------------- menerima undangan */
 
 /**
- * Nomor HP tidak bisa didaftarkan sepihak oleh admin: OTP-nya dikirim ke HP
- * orangnya, dan itu berlaku dengan atau tanpa backend. Jadi alurnya dibuat
- * berdua, admin mengetik nomornya lalu pemilik warung membacakan kodenya.
+ * Membuat baris pengguna untuk orang yang baru saja masuk lewat nomor HP dan
+ * ternyata punya undangan.
+ *
+ * Ini satu satunya tempat seseorang menulis barisnya sendiri, dan yang
+ * menahannya bukan kode ini melainkan firestore.rules: undangannya harus ada
+ * untuk nomor yang tercantum di tokennya, dan peran serta unit usahanya dibaca
+ * dari undangan itu di sisi server. Mengubah nilai di sini tidak akan lolos.
+ *
+ * Undangannya dihapus sesudahnya. Kalau penghapusan itu gagal, barisnya sudah
+ * terlanjur ada dan orangnya tetap bisa masuk; undangan yang tertinggal cuma
+ * membuat admin melihat satu baris "menunggu" yang bisa dibatalkan manual.
  */
-export async function beginPhoneRegistration(
-  phoneE164: string,
-  container: HTMLElement,
-): Promise<PhoneChallenge> {
-  return requestOtp(await registrarAuth(), phoneE164, container)
-}
+export async function claimInvite(user: User): Promise<AppUser | null> {
+  const phone = user.phoneNumber
+  if (!phone) return null
 
-export async function completePhoneRegistration(
-  challenge: PhoneChallenge,
-  code: string,
-  draft: NewUserDraft,
-) {
-  const registrar = await registrarAuth()
-  try {
-    const credential = await challenge.confirmation.confirm(code)
-    return await finishRegistration(credential.user, draft)
-  } finally {
-    challenge.cleanup()
-    await signOut(registrar)
-  }
+  const invite = await getInvite(phone)
+  if (!invite) return null
+
+  await writeUserDoc(user.uid, {
+    name: invite.name,
+    role: invite.role,
+    tenantId: invite.tenantId,
+    email: '',
+    phone,
+  })
+
+  await deleteInvite(phone).catch(() => {
+    // Bukan alasan untuk menggagalkan proses masuknya.
+  })
+
+  return getAppUser(user.uid)
 }
 
 /* ------------------------------------------------------------ akun yang ada */

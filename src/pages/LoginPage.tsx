@@ -6,6 +6,7 @@ import { formatPhone, isValidPhone, toE164 } from '@/lib/phone'
 import type { PhoneChallenge } from '@/lib/phoneAuth'
 import { Button, ErrorState, TextField } from '@/components/ui'
 import { BrandMark } from '@/components/layout/BrandMark'
+import { InstallAppButton } from '@/components/layout/InstallAppButton'
 
 /**
  * Halaman ini tidak memeriksa sesi sama sekali. Pemantulan bagi pengguna yang
@@ -248,7 +249,7 @@ export default function LoginPage() {
                   required
                   value={phone}
                   error={error}
-                  helper="Kode masuk dikirim lewat SMS ke nomor ini."
+                  helper="Boleh ditulis 0851… atau +62851…, keduanya sama. Kode masuk dikirim lewat SMS."
                   onChange={(event) => setPhone(event.target.value)}
                 />
                 <Button
@@ -336,6 +337,12 @@ export default function LoginPage() {
               )}
             </button>
           </div>
+
+          {/*
+            Ditawarkan sebelum masuk, karena di sinilah kasir pertama kali
+            membuka aplikasinya di HP. Hilang sendiri kalau sudah terpasang.
+          */}
+          <InstallAppButton className="mt-6" size="lg" fullWidth />
 
           {/*
             reCAPTCHA tak terlihat. Wadahnya harus ada di DOM sebelum permintaan

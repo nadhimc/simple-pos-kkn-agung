@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { subscribeTenants } from '@/services/tenants'
 import { subscribeUsers } from '@/services/users'
 import { subscribeTenantStats } from '@/services/stats'
+import { subscribeInvites } from '@/services/invites'
 import { firestoreErrorMessage } from '@/lib/errors'
-import type { AppUser, Tenant, TenantStats } from '@/types'
+import type { AppUser, Invite, Tenant, TenantStats } from '@/types'
 
 /**
  * Langganan khusus area admin. Keduanya hanya berisi identitas warung dan
@@ -61,6 +62,33 @@ export function useTenantStats() {
   }, [])
 
   return { stats, loading, error }
+}
+
+/**
+ * Undangan yang belum dipakai, yaitu orang yang sudah didaftarkan tapi belum
+ * pernah masuk. Perlu terlihat: tanpanya, admin tidak punya cara tahu bahwa
+ * seseorang belum juga menyentuh aplikasinya.
+ */
+export function useInvites() {
+  const [invites, setInvites] = useState<Invite[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    return subscribeInvites(
+      (next) => {
+        setInvites(next)
+        setError('')
+        setLoading(false)
+      },
+      (caught) => {
+        setError(firestoreErrorMessage(caught))
+        setLoading(false)
+      },
+    )
+  }, [])
+
+  return { invites, loading, error }
 }
 
 export function useAppUsers() {

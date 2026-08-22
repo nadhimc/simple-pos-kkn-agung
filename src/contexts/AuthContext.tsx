@@ -17,7 +17,7 @@ import {
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { requestOtp, type PhoneChallenge } from '@/lib/phoneAuth'
-import { getAppUser } from '@/services/users'
+import { claimInvite, getAppUser } from '@/services/users'
 import { getTenant } from '@/services/tenants'
 import type { AppUser, Tenant } from '@/types'
 
@@ -69,12 +69,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         setProfileError('')
-        const profile = await getAppUser(nextUser.uid)
+        let profile = await getAppUser(nextUser.uid)
+
+        // Belum punya baris, tapi mungkin diundang. Undangan dicari berdasarkan
+        // nomor yang ada di TOKEN-nya, bukan yang diketik siapa pun, jadi tidak
+        // ada cara memakai undangan milik orang lain. Perannya dan unit
+        // usahanya ikut dari undangan itu.
+        if (!profile && nextUser.phoneNumber) {
+          profile = await claimInvite(nextUser)
+        }
 
         // Login hanya membuktikan siapa orangnya. Sejak Google dan nomor HP
         // aktif, siapa pun bisa lolos tahap itu. Yang menentukan boleh
         // tidaknya masuk adalah baris di koleksi `users`, yang cuma bisa
-        // dibuat admin.
+        // dibuat admin atau lahir dari undangan admin.
         if (!profile) {
           setAccessError(
             `Akun ${nextUser.phoneNumber ?? nextUser.email ?? 'ini'} belum terdaftar. ` +
