@@ -17,6 +17,7 @@ import {
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { requestOtp, type PhoneChallenge } from '@/lib/phoneAuth'
+import { formatPhone } from '@/lib/phone'
 import { claimInvite, getAppUser } from '@/services/users'
 import { getTenant } from '@/services/tenants'
 import type { AppUser, Tenant } from '@/types'
@@ -84,9 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // tidaknya masuk adalah baris di koleksi `users`, yang cuma bisa
         // dibuat admin atau lahir dari undangan admin.
         if (!profile) {
+          // Pesannya dibedakan menurut cara masuknya. Orang yang masuk lewat
+          // nomor HP hanya perlu nomornya diundang, dan menyodorkan UID kepada
+          // mereka justru menyesatkan: admin tidak membutuhkannya.
           setAccessError(
-            `Akun ${nextUser.phoneNumber ?? nextUser.email ?? 'ini'} belum terdaftar. ` +
-              `Minta admin mendaftarkannya dengan UID berikut: ${nextUser.uid}`,
+            nextUser.phoneNumber
+              ? `Nomor ${formatPhone(nextUser.phoneNumber)} belum terdaftar. ` +
+                  'Minta admin mengundang nomor ini lewat halaman Pengguna.'
+              : `Akun ${nextUser.email ?? 'ini'} belum terdaftar. ` +
+                  `Minta admin mendaftarkannya dengan UID berikut: ${nextUser.uid}`,
           )
           await signOut(auth)
           return
@@ -237,6 +244,16 @@ export function authErrorMessage(error: unknown) {
       ? String((error as { code: unknown }).code)
       : ''
 
+  /*
+    Dicatat ke console SELALU, bukan hanya saat pengembangan.
+
+    Kegagalan masuk lewat nomor HP hampir selalu dilaporkan sebagai "error" tanpa
+    keterangan lain, dan tanpa kodenya tidak ada yang bisa membedakan kuota SMS
+    yang habis dari reCAPTCHA yang gagal dari nomor yang salah ketik. Volumenya
+    kecil, cuma di layar masuk, dan nilainya besar saat ada yang melapor.
+  */
+  if (code) console.error('[auth]', code, error)
+
   switch (code) {
     case 'auth/invalid-email':
       return 'Format email tidak valid.'
@@ -266,9 +283,16 @@ export function authErrorMessage(error: unknown) {
     case 'auth/code-expired':
       return 'Kode OTP sudah kedaluwarsa. Minta kode baru.'
     case 'auth/quota-exceeded':
-      return 'Kuota SMS harian habis. Coba lagi besok atau masuk dengan email.'
+      return 'Kuota SMS harian proyek ini sudah habis. Coba lagi besok, atau masuk dengan email.'
     case 'auth/captcha-check-failed':
+    case 'auth/invalid-app-credential':
       return 'Pemeriksaan keamanan gagal. Muat ulang halaman lalu coba lagi.'
+    case 'auth/missing-verification-code':
+      return 'Kode OTP belum diisi.'
+    case 'auth/app-not-authorized':
+      return 'Aplikasi ini belum diizinkan memakai login nomor HP untuk proyek tersebut.'
+    case 'auth/billing-not-enabled':
+      return 'Fitur ini butuh paket Firebase berbayar. Hubungi admin.'
     case 'auth/credential-already-in-use':
       return 'Nomor ini sudah dipakai akun lain.'
 
@@ -286,6 +310,11 @@ export function authErrorMessage(error: unknown) {
       return 'Email ini sudah dipakai dengan metode masuk lain. Gunakan email dan kata sandi.'
 
     default:
-      return 'Gagal masuk. Coba lagi sebentar lagi.'
+      // Kode yang belum diterjemahkan tetap ditampilkan apa adanya. Pesan
+      // seragam "coba lagi sebentar lagi" membuat kegagalan yang berulang
+      // mustahil ditelusuri dari laporan pengguna.
+      return code
+        ? `Gagal masuk (${code}). Kalau berulang, sebutkan kode ini ke admin.`
+        : 'Gagal masuk. Coba lagi sebentar lagi.'
   }
 }

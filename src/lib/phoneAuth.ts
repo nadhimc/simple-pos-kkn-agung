@@ -23,6 +23,17 @@ export async function requestOtp(
   phoneE164: string,
   container: HTMLElement,
 ): Promise<PhoneChallenge> {
+  /*
+    Wadahnya dikosongkan lebih dulu.
+
+    Verifier yang gagal sebelumnya kadang meninggalkan iframe reCAPTCHA di DOM,
+    misalnya ketika `clear()` sendiri melempar. Verifier baru yang dipasang di
+    atas sisa itu menghasilkan token yang ditolak, dan gejalanya di layar cuma
+    "gagal masuk" berulang tanpa pola yang jelas. Satu baris ini menghapus
+    seluruh kelas kegagalan tersebut.
+  */
+  container.replaceChildren()
+
   const verifier = new RecaptchaVerifier(instance, container, { size: 'invisible' })
 
   /*
