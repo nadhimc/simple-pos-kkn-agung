@@ -174,6 +174,29 @@ masuk menampilkan UID-nya supaya bisa dikirim ke admin. Admin bisa mendaftarkan
 UID itu langsung lewat mode UID di form pengguna, yang juga satu satunya cara
 mendaftarkan orang yang hanya punya akun Google.
 
+### Nomor HP: undangan, bukan OTP di sisi admin
+
+Nomor HP tidak bisa didaftarkan sepihak oleh siapa pun: OTP-nya dikirim ke HP
+orangnya, dengan atau tanpa backend. Karena itu admin tidak mendaftarkan
+nomornya, melainkan **mengundang**: `invites/{nomor E.164}` berisi nama, peran,
+dan `tenantId`. Orangnya lalu masuk sendiri kapan saja, dan barisnya di `users`
+dibuat pada saat itu juga oleh `claimInvite`.
+
+**Ini satu satunya tempat seseorang menulis barisnya sendiri di `users`.** Yang
+menahannya bukan kode klien melainkan `firestore.rules`: undangannya harus ada
+untuk nomor yang tercantum di `request.auth.token.phone_number`, dan `tenantId`
+serta perannya dibaca dari undangan itu di sisi server. Undangan tidak pernah
+bisa menghasilkan peran `admin`.
+
+Undangan hilang sendiri begitu dipakai. Yang belum terpakai muncul di halaman
+Pengguna sebagai "Menunggu masuk pertama", supaya admin tahu ada orang yang
+belum juga menyentuh aplikasinya.
+
+**Form pengguna tidak memilihkan unit usaha otomatis** saat ada lebih dari satu.
+Bawaan berdasarkan urutan abjad membuat admin yang tidak memperhatikan dropdown
+memasukkan orang ke unit yang salah tanpa satu pun tanda, dan salah tempat
+seperti itu baru ketahuan setelah orangnya membuka pembukuan yang bukan miliknya.
+
 ### Membuat akun tanpa kehilangan sesi sendiri
 
 `createUserWithEmailAndPassword` dan `confirmationResult.confirm` sama sama ikut
@@ -265,6 +288,7 @@ Dua koleksi di akar, dan lima subkoleksi di bawah tiap warung.
 
 ```
 users/{uid}
+invites/{nomorE164}
 tenants/{tenantId}
 tenantStats/{tenantId}
 tenants/{tenantId}/products/{id}
@@ -285,6 +309,10 @@ salah ditolak server. Jangan membalik ini.
 phone, role` (`admin`, `pemilik`, atau `kasir`), `tenantId`, `active`,
 `createdAt`. `tenantId` kosong hanya untuk admin platform. Ditulis admin lewat
 aplikasi, kecuali baris admin pertama yang datang dari skrip seed.
+
+**`invites`** — id dokumennya adalah nomor HP dalam format E.164. Isinya `name,
+role, tenantId, createdAt`. Ditulis admin, dibaca dan dihapus oleh pemilik
+nomornya sendiri. Hilang begitu dipakai.
 
 **`tenants`** — `name, ownerName, phone, address, active, createdAt, updatedAt`.
 Hanya identitas unit usaha, tanpa angka usaha. `active: false` menutup seluruh
@@ -431,8 +459,10 @@ sendiri.
   kali, dan dua pemanggil yang sama sama benar memang memanggilnya dua kali, jadi
   `cleanup` di `src/lib/phoneAuth.ts` dibuat tahan dipanggil berkali kali. Tanpa
   itu seluruh aplikasi kosong tepat setelah kode yang benar dimasukkan.
-- Nomor HP disimpan dalam format E.164 (`+6285…`) di mana mana, dan hanya
-  ditampilkan sebagai `0851…`. Konversinya cuma di `src/lib/phone.ts`.
+- Nomor HP **disimpan** selalu dalam E.164 (`+6285…`) dan **ditampilkan** selalu
+  sebagai `0851…`. Yang **diketik** boleh bentuk apa pun: `0851…`, `851…`,
+  `62851…`, atau `+62851…`, dengan spasi atau tanda hubung sesukanya. Seluruh
+  konversinya cuma di `src/lib/phone.ts`; jangan menebak nebak di layar mana pun.
 - Nomor uji didaftarkan di Firebase Console, menu Authentication, Sign-in method,
   Phone, Phone numbers for testing. Nomor uji tidak mengirim SMS dan tidak
   memakai kuota.
@@ -440,6 +470,30 @@ sendiri.
   tidak bisa diotomasi apa adanya. Saklar resminya
   `auth.settings.appVerificationDisabledForTesting`, dan itu diset dari luar
   lewat modul yang sama, bukan ditanam di kode aplikasi.
+
+## Aplikasi terpasang
+
+`public/manifest.webmanifest` dan `public/sw.js` membuat aplikasi ini bisa
+dipasang ke layar utama. Keduanya berkas statis di `public/`, bukan hasil plugin,
+supaya tidak ada langkah build tersembunyi.
+
+**Service worker sengaja tidak menyajikan `index.html` dari cache.** Halaman
+selalu diambil dari jaringan lebih dulu, karena `index.html`-lah yang menunjuk
+berkas bundel mana yang dipakai. Kalau ia dilayani dari cache, kasir bisa
+menjalankan versi lama berhari hari setelah perbaikan dikirim, dan kesalahan
+seperti itu nyaris mustahil disadari dari luar. Yang boleh cache-first hanya
+`/assets/`, karena nama berkasnya mengandung hash isi sehingga satu nama
+selamanya berarti satu isi.
+
+Service worker hanya didaftarkan pada build produksi. Di server pengembangan ia
+bersaing dengan hot reload Vite dan menyajikan berkas basi.
+
+Tombol Pasang tidak pernah tergambar kecuali browser benar benar menawarkan
+pemasangan, jadi ia hilang sendiri kalau sudah terpasang atau browsernya tidak
+mendukung. Safari di iOS tidak pernah mengirim `beforeinstallprompt`, jadi di
+sana pemasangan hanya lewat menu Bagikan dan tombolnya memang tidak muncul.
+Ikon dirasterisasi dari `public/favicon.svg` yang sama, jadi bentuknya tidak
+pernah berbeda antar ukuran.
 
 ## Bahasa
 

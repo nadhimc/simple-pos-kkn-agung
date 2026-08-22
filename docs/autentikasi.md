@@ -20,7 +20,7 @@ sendiri, tidak selalu punya email, dan tidak perlu memilih apa apa.
 
 | Metode | Untuk siapa | Catatan |
 | --- | --- | --- |
-| Nomor HP (OTP) | Orang warung | Butuh reCAPTCHA, kode enam angka lewat SMS |
+| Nomor HP (OTP) | Orang unit usaha | Butuh reCAPTCHA, kode enam angka lewat SMS. Boleh diketik `0851…` maupun `+62851…` |
 | Email dan kata sandi | Admin platform, dan orang warung yang dibuatkan admin | Tidak butuh reCAPTCHA |
 | Google | Akun yang sudah ada | Tidak bisa dibuatkan admin, harus sign-in sendiri dulu |
 
@@ -64,6 +64,11 @@ sequenceDiagram
 **Nomor selalu disimpan dalam E.164** (`+6285…`) dan hanya ditampilkan sebagai
 `0851…`. Konversinya cuma ada di [`src/lib/phone.ts`](../src/lib/phone.ts),
 supaya tidak ada layar yang menebak sendiri lalu mengirim nomor yang salah.
+
+**Masuk pertama kali bisa sekaligus jadi pendaftaran.** Kalau nomor itu punya
+undangan, barisnya di `users` dibuat tepat setelah OTP-nya berhasil, dan orangnya
+langsung mendarat di unit usahanya tanpa pernah melihat penolakan. Alurnya di
+[Multi Warung](./multi-warung.md#undangan-nomor-hp).
 
 **Pembersihan reCAPTCHA harus tahan dipanggil berkali kali.**
 `RecaptchaVerifier.clear()` melempar `auth/internal-error` kalau verifiernya
@@ -185,6 +190,7 @@ stateDiagram-v2
 
   TanpaSesi --> MemeriksaStaf: kredensial diterima
   MemeriksaStaf --> Masuk: baris users ada dan aktif
+  MemeriksaStaf --> Masuk: belum ada baris,<br/>tapi nomornya diundang
   MemeriksaStaf --> Ditolak: belum terdaftar, atau dinonaktifkan
   MemeriksaStaf --> GagalMemuatProfil: pemeriksaan gagal, jaringan
 

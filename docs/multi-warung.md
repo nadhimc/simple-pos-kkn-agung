@@ -77,6 +77,7 @@ membentuk `tenants//products`.
 
 ```
 users/{uid}
+invites/{nomorE164}
 tenants/{tenantId}
 tenantStats/{tenantId}
 tenants/{tenantId}/products/{id}
@@ -189,19 +190,78 @@ menggantung milik orang lain di perangkat admin.
 
 ### Tiga cara mendaftarkan
 
-| Cara | Kapan dipakai | Kenapa ada |
+| Cara | Kapan dipakai | Yang terjadi |
 | --- | --- | --- |
-| Nomor HP | Pemilik warung yang tidak punya email | Paling mudah diingat orangnya |
-| Email | Akun yang kata sandinya diberikan admin | Bisa dibuat sepihak, tanpa OTP |
-| UID | Akun yang sudah pernah masuk, misalnya lewat Google | Satu satunya cara untuk akun Google |
-
-Nomor HP tidak bisa didaftarkan sepihak: OTP-nya dikirim ke HP orangnya, dan itu
-berlaku dengan atau tanpa backend. Jadi alurnya memang dirancang berdua, admin
-mengetik nomornya lalu pemilik warung membacakan kodenya.
+| Nomor HP | Paling umum | Undangan disimpan; barisnya lahir saat orangnya masuk |
+| Email | Akun yang kata sandinya diberikan admin | Akun dan barisnya dibuat langsung |
+| UID | Akun yang sudah pernah masuk, misalnya lewat Google | Barisnya saja yang dibuat |
 
 Akun Google tidak bisa dibuatkan sama sekali. UID-nya baru ada setelah orangnya
 sign-in sekali, dan halaman masuk menampilkan UID itu saat menolaknya, supaya
 bisa langsung dikirim ke admin.
+
+### Undangan nomor HP
+
+Nomor HP tidak bisa didaftarkan sepihak oleh siapa pun: OTP-nya dikirim ke HP
+orangnya, dan itu berlaku dengan atau tanpa backend. Yang bisa dipindahkan
+bukanlah OTP-nya, melainkan **siapa yang mengerjakannya dan kapan**.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor AD as Admin
+  participant UI as UserFormModal
+  participant FS as Firestore
+  actor OR as Orang yang diundang
+  participant FA as Firebase Auth
+  participant AC as AuthContext
+
+  AD->>UI: nama, unit usaha, peran, nomor HP
+  UI->>FS: setDoc invites/+6285…
+  Note over AD: selesai, tanpa OTP sama sekali
+
+  OR->>FA: masuk dengan nomornya sendiri
+  FA-->>OR: OTP lewat SMS
+  OR->>FA: kode enam angka
+  FA-->>AC: token berisi phone_number
+
+  AC->>FS: getAppUser(uid) → belum ada
+  AC->>FS: getInvite(phone_number dari TOKEN)
+  FS-->>AC: { name, role, tenantId }
+  AC->>FS: setDoc users/{uid}
+  Note over FS: rules membaca ulang undangannya,<br/>peran dan tenantId harus cocok
+  AC->>FS: hapus undangannya
+  AC-->>OR: langsung mendarat di unit usahanya
+```
+
+OTP terjadi tepat sekali, di tempat yang memang tidak bisa dihindari: saat
+orangnya masuk. Admin tidak pernah menyentuhnya, dan pendaftaran bisa dilakukan
+dari jarak jauh tanpa keduanya harus berada di tempat yang sama.
+
+**Ini satu satunya tempat seseorang menulis barisnya sendiri di `users`,** jadi
+aturannya ditulis rapat:
+
+| Yang dijaga | Caranya |
+| --- | --- |
+| Tidak ada undangan, tidak ada jalan masuk | `exists(invites/{phone})` wajib benar |
+| Undangan orang lain tidak bisa dipakai | Nomornya dibaca dari `request.auth.token.phone_number`, bukan dari yang dikirim browser |
+| Peran dan unit usaha tidak bisa dikarang | Keduanya dibaca dari dokumen undangan di sisi server |
+| Undangan tidak bisa melahirkan admin | `role != 'admin'` pada jalur ini, dan validator undangan hanya menerima `pemilik` atau `kasir` |
+
+Undangan yang belum dipakai tampil di halaman Pengguna sebagai "Menunggu masuk
+pertama". Tanpa itu, admin tidak punya cara tahu bahwa seseorang sudah
+didaftarkan tapi belum pernah menyentuh aplikasinya.
+
+### Unit usaha tidak dipilihkan otomatis
+
+Form pendaftaran dulu memakai unit usaha pertama menurut abjad sebagai bawaan.
+Akibatnya admin yang tidak memperhatikan dropdown memasukkan orang ke unit yang
+salah tanpa satu pun tanda, dan salah tempat seperti itu baru ketahuan setelah
+orangnya membuka pembukuan yang bukan miliknya.
+
+Sekarang unitnya kosong sampai dipilih, kecuali kalau memang tidak ada yang
+ambigu: hanya ada satu unit usaha, atau formnya dibuka dari baris unit tertentu
+di halaman Unit Usaha.
 
 ### Kalau langkah kedua gagal
 
@@ -333,6 +393,8 @@ salinan nama kasirnya sendiri.
 | Belum ada | Konsekuensi |
 | --- | --- |
 | Satu akun untuk beberapa unit usaha | Orang yang mengelola dua unit butuh dua akun |
+| Undangan lewat email | Akun email tetap dibuatkan admin lengkap dengan kata sandinya |
+| Undangan kedaluwarsa sendiri | Undangan bertahan sampai dipakai atau dibatalkan admin |
 | Menghapus unit usaha dari aplikasi | Diganti penonaktifan; penghapusan sungguhan butuh skrip |
 | Hak akses berbeda antara pemilik dan kasir | Peran disimpan dan ditampilkan, tapi belum membatasi apa pun |
 | Rincian transaksi untuk admin | Sengaja tidak ada. Yang tersedia hanya total lewat `tenantStats` |

@@ -45,6 +45,52 @@ seluruh isinya, tempel isi `firestore.rules`, lalu **Publish**.
 Verifikasi dengan Rules Playground seperti dijelaskan di
 [Keamanan](./keamanan.md#memverifikasi-aturan-sudah-terpasang).
 
+## Memasang aplikasi ke layar utama
+
+`public/manifest.webmanifest` dan `public/sw.js` adalah berkas statis biasa,
+bukan hasil plugin build, sehingga tidak ada langkah tersembunyi saat deploy.
+
+```mermaid
+flowchart TD
+  A["Browser membuka aplikasi"] --> B{"Syarat pemasangan terpenuhi?"}
+  B -->|"HTTPS, manifest lengkap,<br/>service worker dengan fetch"| C["beforeinstallprompt"]
+  B -->|"tidak"| D["Tidak ada tawaran,<br/>tombol Pasang tidak digambar"]
+  C --> E["Tombol Pasang muncul"]
+  E --> F["Dipasang, appinstalled"]
+  F --> G["Tombol hilang"]
+
+  H["Dibuka dari ikon layar utama"] --> I["display-mode: standalone"]
+  I --> G
+
+  classDef ok fill:#047857,stroke:#047857,color:#ffffff
+  class G ok
+```
+
+Tombol Pasang tidak pernah tergambar kecuali browser benar benar menawarkan
+pemasangan. Tombol yang muncul lalu tidak melakukan apa apa lebih membingungkan
+daripada tombol yang tidak ada.
+
+**Safari di iOS tidak pernah mengirim `beforeinstallprompt`,** jadi tombolnya
+memang tidak muncul di sana dan tidak ada API yang boleh dipanggil halaman untuk
+memicunya. Pemasangan di iOS hanya lewat menu Bagikan, lalu Tambahkan ke Layar
+Utama. Meta `apple-mobile-web-app-capable` di `index.html` yang membuat hasilnya
+tetap membuka layar penuh tanpa bilah alamat.
+
+### Yang sengaja tidak di-cache
+
+| Permintaan | Perlakuan | Alasan |
+| --- | --- | --- |
+| Navigasi halaman | jaringan dulu, cache sebagai cadangan | `index.html` menunjuk bundel mana yang dipakai. Melayaninya dari cache berarti kasir bisa menjalankan versi lama berhari hari setelah perbaikan dikirim |
+| `/assets/*` | cache dulu | Namanya mengandung hash isi, jadi satu nama selamanya berarti satu isi |
+| Firestore, Auth, reCAPTCHA | tidak disentuh | Menyentuhnya hanya mengacaukan langganan real time dan alur OTP |
+
+Service worker hanya didaftarkan pada build produksi. Di server pengembangan ia
+bersaing dengan hot reload Vite dan menyajikan berkas basi, kesalahan yang
+sangat mahal waktunya untuk ditelusuri.
+
+Ikon dirasterisasi dari `public/favicon.svg` yang sama, sehingga bentuknya tidak
+pernah berbeda antar ukuran. Kalau markanya diubah, ikonnya harus dibuat ulang.
+
 ## Mengisi data awal
 
 Koleksi Firestore tercipta sendiri saat dokumen pertamanya ditulis, jadi tidak

@@ -7,6 +7,7 @@ ada di [`src/types/index.ts`](../src/types/index.ts).
 
 ```
 users/{uid}                          siapa boleh masuk, ke unit usaha mana
+invites/{nomorE164}                  sudah diundang, belum pernah masuk
 tenants/{tenantId}                   identitas unit usaha
 tenantStats/{tenantId}               ringkasan angka, dibaca admin
 tenants/{tenantId}/products/{id}
@@ -29,6 +30,7 @@ Dua subkoleksi, `recipes` dan `productions`, dibahas terpisah di
 ```mermaid
 erDiagram
   TENANTS ||--|| TENANT_STATS : "diringkas oleh"
+  TENANTS ||--o{ INVITES : "mengundang ke"
   TENANTS ||--o{ USERS : "dibuka oleh"
   TENANTS ||--o{ PRODUCTS : "memiliki"
   TENANTS ||--o{ SALES : "memiliki"
@@ -64,6 +66,14 @@ erDiagram
     number productionCount
     timestamp lastSaleAt "null kalau belum pernah menjual"
     map months "kunci YYYY-MM, waktu lokal"
+  }
+
+  INVITES {
+    string phone PK "id dokumen, format E.164"
+    string name
+    string role "pemilik atau kasir, tidak pernah admin"
+    string tenantId FK
+    timestamp createdAt
   }
 
   USERS {

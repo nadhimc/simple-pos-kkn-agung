@@ -155,11 +155,15 @@ Baris kelima membuktikan admin platform memang tidak bisa mengintip pembukuan.
 Dari aplikasi, sebagai admin: menu **Pengguna** → **Daftarkan pengguna**. Ada
 tiga cara, dan ketiganya membuat akunnya tanpa mengganggu sesi Anda.
 
-| Cara | Kapan dipakai |
-| --- | --- |
-| **Nomor HP** | Paling mudah untuk pemilik unit usaha. Anda mengetik nomornya, kode enam angka masuk ke HP-nya, dia membacakannya ke Anda. |
-| **Email** | Akun dan kata sandinya Anda buat di sini, lalu diberikan ke orangnya. |
-| **UID** | Untuk akun yang sudah pernah masuk, misalnya lewat Google. UID-nya ditampilkan halaman masuk saat menolaknya. |
+| Cara | Kapan dipakai | Perlu OTP? |
+| --- | --- | --- |
+| **Nomor HP** | Paling mudah. Tulis nomornya, selesai. Orangnya masuk sendiri kapan saja dari HP-nya, dan barisnya lahir saat itu juga. | Tidak, di sisi Anda |
+| **Email** | Akun dan kata sandinya Anda buat di sini, lalu diberikan ke orangnya. | Tidak |
+| **UID** | Untuk akun yang sudah pernah masuk, misalnya lewat Google. UID-nya ditampilkan halaman masuk saat menolaknya. | Tidak |
+
+Undangan nomor HP yang belum dipakai muncul di bagian **Menunggu masuk pertama**,
+jadi Anda tahu siapa yang belum juga membuka aplikasinya. Undangannya hilang
+sendiri begitu orangnya masuk.
 
 Pilih peran **Admin platform** untuk membuat admin baru. Admin tidak terikat unit
 usaha mana pun, jadi pemilih unit usahanya hilang sendiri. Yang tidak bisa
@@ -167,7 +171,23 @@ dilakukan siapa pun, termasuk admin: menurunkan peran atau menonaktifkan
 **dirinya sendiri**, supaya sistem tidak bisa kehilangan admin terakhirnya.
 
 Nomor HP tidak bisa didaftarkan sepihak, dengan atau tanpa backend: OTP-nya
-dikirim ke HP pemilik nomornya. Karena itu alurnya memang dirancang berdua.
+dikirim ke HP pemilik nomornya. Undangan memindahkan OTP itu ke tempat yang
+memang seharusnya, yaitu saat orangnya masuk sendiri. Jadi OTP terjadi tepat
+sekali, dan pendaftarannya bisa dilakukan dari jarak jauh.
+
+### Format nomor HP
+
+Ketik sesuka Anda. Keempat bentuk ini diperlakukan sama persis:
+
+```
+085156657853        0851-5665-7853
+85156657853         +62 851 5665 7853
+```
+
+Firebase hanya menerima format internasional, jadi apa pun yang diketik diubah
+ke `+6285156657853` sebelum dikirim, dan itu pula yang **disimpan**. Yang
+**ditampilkan** selalu bentuk lokal `0851-5665-7853`. Kolom nomor menunjukkan
+hasil konversinya langsung di bawah kolom, jadi bisa dicek sebelum disimpan.
 
 Mencabut akses ada dua tingkat. **Nonaktifkan** lewat tombol Ubah kalau hanya
 sementara, atau **cabut akses** untuk menghapus barisnya sekaligus. Riwayat
@@ -206,6 +226,20 @@ itu. Efeknya:
 - Orang yang mencoba masuk mendapat penjelasan bahwa unit usahanya sedang
   dinonaktifkan, bukan layar gagal tanpa sebab.
 - Seluruh data tetap utuh, dan mengaktifkan kembali mengembalikan semuanya.
+
+## Memasang aplikasi di HP
+
+Tombol **Pasang aplikasi** muncul di halaman masuk dan di header. Setelah
+dipasang, aplikasinya terbuka dari ikon di layar utama tanpa bilah alamat, dan
+kerangkanya tetap terbuka walau jaringan sedang mati.
+
+Tombol itu **hanya muncul kalau browsernya benar benar menawarkan pemasangan**,
+jadi hilang sendiri begitu aplikasinya sudah terpasang. Tombol yang muncul lalu
+tidak melakukan apa apa lebih membingungkan daripada tombol yang tidak ada.
+
+Di **iPhone**, Safari tidak pernah menawarkan pemasangan lewat tombol, jadi
+tombolnya memang tidak akan muncul di sana. Caranya: tekan tombol **Bagikan**,
+lalu **Tambahkan ke Layar Utama**. Ikon dan mode layar penuhnya tetap benar.
 
 ## Sesi dan PIN
 

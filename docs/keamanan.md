@@ -49,6 +49,8 @@ dan hanya dipakai `scripts/seed.mjs` yang dijalankan manual.
 | --- | --- | --- | --- |
 | Orang asing menebak URL aplikasi | Tinggi | Guard rute lalu Security Rules | Tidak ada, data tidak terbaca |
 | Pemilik akun Google atau nomor HP acak berhasil autentikasi | **Tinggi** | Dokumen `users/{uid}` wajib ada | Tidak ada, semua koleksi menolak |
+| Orang tak diundang mendaftarkan dirinya lewat nomor HP | Sedang | Undangan wajib ada untuk nomor di tokennya | Tidak ada |
+| Orang diundang jadi kasir mendaftarkan diri jadi pemilik | Rendah | Peran dibaca dari undangan di sisi server | Tidak ada |
 | Orang warung membaca pembukuan warung tetangga | **Tinggi** | Tenant ada di jalur dokumen, `isMemberOf(tenantId)` | Tidak ada, jalur lain ditolak server |
 | Akun admin platform bocor | Sedang | Admin tidak diberi akses ke subkoleksi tenant mana pun | Daftar warung dan pengguna terbuka, pembukuan tidak |
 | Penyerang memanggil Firestore REST langsung, melewati aplikasi | Sedang | Security Rules, tidak bergantung pada klien | Tidak ada |
@@ -164,6 +166,37 @@ HP terbuka untuk siapa saja, asumsi itu runtuh.
 Cabang `D4` adalah sekat antar warung, dan ia bekerja karena tenant ada di jalur
 dokumen. Lihat [Multi Warung](./multi-warung.md#tenant-sebagai-jalur-bukan-field).
 
+### Satu satunya pendaftaran mandiri
+
+`users` punya satu jalan masuk yang tidak melewati admin secara langsung: orang
+yang baru masuk lewat nomor HP menulis barisnya sendiri, kalau ada undangan
+untuk nomornya.
+
+```mermaid
+flowchart TD
+  A["Menulis users/{uid} untuk dirinya sendiri"] --> B{"request.auth.uid == uid?"}
+  B -->|"tidak"| D1["DITOLAK"]
+  B -->|"ya"| C{"phone di dokumen<br/>== phone_number di token?"}
+  C -->|"tidak"| D2["DITOLAK<br/>memakai nomor orang lain"]
+  C -->|"ya"| E{"invites/{phone} ada?"}
+  E -->|"tidak"| D3["DITOLAK<br/>tidak diundang"]
+  E -->|"ya"| F{"peran dan tenantId<br/>sama dengan undangannya?"}
+  F -->|"tidak"| D4["DITOLAK<br/>mengarang kedudukan"]
+  F -->|"ya"| G{"peran bukan admin?"}
+  G -->|"admin"| D5["DITOLAK"]
+  G -->|"bukan"| OK["LOLOS"]
+
+  classDef no fill:#b91c1c,stroke:#b91c1c,color:#ffffff
+  classDef ok fill:#047857,stroke:#047857,color:#ffffff
+  class D1,D2,D3,D4,D5 no
+  class OK ok
+```
+
+`phone_number` datang dari token yang ditandatangani Firebase setelah OTP-nya
+berhasil, jadi tidak ada cara mengaku ngaku memiliki nomor orang lain. Peran dan
+`tenantId` dibaca ulang dari dokumen undangan **di sisi server**, sehingga apa
+pun yang dikirim browser tidak menentukan apa apa.
+
 > `exists()` dan `get()` menambah operasi baca per evaluasi aturan. Untuk warung
 > satu gerai jumlahnya tidak berarti, tapi perlu diingat kalau kelak ada kueri
 > yang membaca ribuan dokumen sekaligus.
@@ -175,7 +208,8 @@ sendiri, dan "admin" berarti `isAdmin()`.
 
 | Jalur | read | create | update | delete |
 | --- | --- | --- | --- | --- |
-| `users/{uid}` | uid itu sendiri, atau admin | admin + validasi | admin + validasi + tidak mengubah kedudukan sendiri | admin, kecuali barisnya sendiri |
+| `users/{uid}` | uid itu sendiri, atau admin | admin + validasi, **atau** pemilik nomor yang punya undangan cocok | admin + validasi + tidak mengubah kedudukan sendiri | admin, kecuali barisnya sendiri |
+| `invites/{nomor}` | admin, atau pemilik nomornya | admin + validasi | admin + validasi | admin, atau pemilik nomornya |
 | `tenants/{id}` | warga (tanpa cek aktif), atau admin | admin | admin | admin |
 | `tenantStats/{id}` | warga, atau admin | warga | warga | warga |
 | `tenants/{id}/products` | warga | warga + validasi | warga + validasi | warga |
