@@ -70,6 +70,16 @@ undangan, barisnya di `users` dibuat tepat setelah OTP-nya berhasil, dan orangny
 langsung mendarat di unit usahanya tanpa pernah melihat penolakan. Alurnya di
 [Multi Warung](./multi-warung.md#undangan-nomor-hp).
 
+**reCAPTCHA memakai kotak centang, bukan mode tak terlihat.** Mode tak terlihat
+lebih rapi, tapi hanya selama ia mempercayai pengunjungnya. Kalau tidak, ia
+menaikkan tantangan gambar, dan kalau tantangan itu tidak diselesaikan maka
+`signInWithPhoneNumber` tidak pernah selesai: tanpa error, tanpa SMS, hanya
+tombol yang berputar. Kegagalan yang tidak bisa dilihat maupun dilaporkan adalah
+yang terburuk untuk layar masuk, jadi ditukar dengan satu ketukan yang terlihat.
+
+**Ada batas waktu.** Permintaan yang tidak dijawab dalam tiga menit berhenti
+dengan `auth/otp-timeout`, bukan menggantung selamanya.
+
 **Pembersihan reCAPTCHA harus tahan dipanggil berkali kali.**
 `RecaptchaVerifier.clear()` melempar `auth/internal-error` kalau verifiernya
 sudah dibuang, dan dua pemanggil yang sama sama benar memang memanggilnya dua

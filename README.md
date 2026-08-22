@@ -175,6 +175,17 @@ dikirim ke HP pemilik nomornya. Undangan memindahkan OTP itu ke tempat yang
 memang seharusnya, yaitu saat orangnya masuk sendiri. Jadi OTP terjadi tepat
 sekali, dan pendaftarannya bisa dilakukan dari jarak jauh.
 
+### Kalau kode SMS tidak kunjung datang
+
+Setelah menekan **Kirim kode**, akan muncul kotak **"Saya bukan robot"** yang
+harus dicentang lebih dulu. SMS baru dikirim setelah centang itu selesai. Kalau
+kotaknya diabaikan, tidak ada SMS yang terkirim dan tidak ada pesan kesalahan,
+karena memang tidak ada yang gagal, hanya belum selesai.
+
+Kalau setelah dicentang tetap gagal, layar masuk sekarang menampilkan kode
+kesalahannya dalam kurung. Sebutkan kode itu, karena dari situ penyebabnya bisa
+ditentukan tanpa menebak.
+
 ### Format nomor HP
 
 Ketik sesuka Anda. Keempat bentuk ini diperlakukan sama persis:

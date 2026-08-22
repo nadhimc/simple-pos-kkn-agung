@@ -454,6 +454,21 @@ sendiri.
   `index.css`, bukan membuka jendela baru, supaya jalan di printer termal murah.
 - Enter di kolom pencarian kasir menambahkan satu satunya hasil yang cocok. Itu
   yang membuat pemindai barcode USB bekerja.
+- **reCAPTCHA untuk masuk lewat nomor HP sengaja memakai kotak centang, bukan
+  mode tak terlihat.** Mode tak terlihat menaikkan tantangan gambar saat ia tidak
+  mempercayai pengunjungnya, dan kalau tantangan itu tidak diselesaikan maka
+  `signInWithPhoneNumber` tidak pernah selesai: tanpa error, tanpa SMS, hanya
+  tombol berputar selamanya. Kegagalan yang tidak bisa dilihat maupun dilaporkan
+  adalah yang terburuk untuk layar masuk. Harganya satu ketukan, sekali seumur
+  perangkat, karena sesinya bertahan selamanya.
+- **`requestOtp` punya batas waktu.** Permintaan yang tidak dijawab menghasilkan
+  `auth/otp-timeout` yang bisa dibaca pengguna, bukan spinner abadi.
+- `auth.languageCode = 'id'` mengatur bahasa untuk yang digambar Firebase
+  sendiri: kotak reCAPTCHA dan isi SMS verifikasi.
+- **Pengujian otomatis login HP memakai `appVerificationDisabledForTesting`, dan
+  itu MELEWATI reCAPTCHA sepenuhnya.** Hasil hijau dari uji semacam itu tidak
+  mengatakan apa pun tentang jalur reCAPTCHA. Kalau mengubah alur OTP, uji juga
+  tanpa saklar tersebut.
 - Masuk lewat nomor HP wajib melewati reCAPTCHA, termasuk untuk nomor uji.
   `RecaptchaVerifier.clear()` melempar `auth/internal-error` kalau dipanggil dua
   kali, dan dua pemanggil yang sama sama benar memang memanggilnya dua kali, jadi
