@@ -1,6 +1,7 @@
 import { PrinterIcon } from '@phosphor-icons/react'
 import { Button, Modal } from '@/components/ui'
-import { STORE_NAME } from '@/lib/firebase'
+import { useAuth } from '@/contexts/AuthContext'
+import { APP_NAME } from '@/lib/firebase'
 import { formatDateTime, formatNumber, formatRupiah } from '@/lib/format'
 import type { Sale } from '@/types'
 
@@ -15,13 +16,19 @@ const METHOD_LABEL: Record<Sale['paymentMethod'], string> = {
  * hasil cetak printer termal 58mm yang biasa dipakai warung.
  */
 export function ReceiptBody({ sale }: { sale: Sale }) {
+  // Nama yang tercetak adalah nama warungnya, bukan nama layanan: struk ini
+  // dipegang pembeli, dan yang dia kenali warungnya.
+  const { tenant } = useAuth()
+
   return (
     <div
       id="receipt-print-area"
       className="mx-auto w-full max-w-80 font-mono text-xs text-ink"
     >
       <div className="text-center">
-        <p className="text-sm font-semibold tracking-tight">{STORE_NAME}</p>
+        <p className="text-sm font-semibold tracking-tight">
+          {tenant?.name ?? APP_NAME}
+        </p>
         <p className="mt-1 text-ink-muted">{sale.invoiceNo}</p>
         <p className="text-ink-muted">{formatDateTime(sale.createdAt)}</p>
         <p className="text-ink-muted">Kasir: {sale.cashierName}</p>

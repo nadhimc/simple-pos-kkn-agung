@@ -13,7 +13,7 @@ interface ExpenseFormModalProps {
 }
 
 export function ExpenseFormModal({ open, onClose, expense }: ExpenseFormModalProps) {
-  const { user } = useAuth()
+  const { user, tenantId } = useAuth()
   const [date, setDate] = useState(toDateInputValue(new Date()))
   const [category, setCategory] = useState<ExpenseCategory>(EXPENSE_CATEGORIES[0])
   const [description, setDescription] = useState('')
@@ -53,10 +53,10 @@ export function ExpenseFormModal({ open, onClose, expense }: ExpenseFormModalPro
     setSaving(true)
     try {
       if (expense) {
-        await updateExpense(expense.id, draft)
+        await updateExpense(tenantId, expense.id, draft)
         toast.success('Beban diperbarui.')
       } else {
-        await createExpense(draft, user?.uid ?? '')
+        await createExpense(tenantId, draft, user?.uid ?? '')
         toast.success('Beban dicatat.')
       }
       onClose()

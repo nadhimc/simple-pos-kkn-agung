@@ -10,95 +10,168 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // GERBANG AKSES.
+    /* ------------------------------------------------------------ gerbang */
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function isRegistered() {
+      return request.auth != null && exists(userPath());
+    }
+
+    function me() {
+      return get(userPath()).data;
+    }
+
+    // Akses dicabut dengan mematikan akunnya, bukan menghapusnya, supaya nama
+    // yang tersimpan di struk lama tetap punya rujukan.
+    function isActive() {
+      return isRegistered() && me().active == true;
+    }
+
+    // ADMIN PLATFORM.
     //
-    // Sejak Google Sign-In aktif, "sudah login" tidak lagi berarti "orang toko":
-    // siapa pun pemilik akun Google bisa lolos tahap autentikasi. Yang
-    // membedakan adalah keberadaan dokumen staff/{uid}.
+    // Mengelola warung dan pengguna, dan sengaja TIDAK diberi akses ke
+    // pembukuan warung mana pun. Perhatikan bahwa isAdmin() tidak muncul sama
+    // sekali pada aturan subkoleksi tenant di bawah, dan itu disengaja: satu
+    // akun admin yang bocor tidak boleh berarti seluruh pembukuan semua warung
+    // ikut terbuka.
+    function isAdmin() {
+      return isActive() && me().role == 'admin';
+    }
+
+    // ORANG WARUNG.
     //
-    // Dokumen staf hanya dibuat lewat Firebase Console, tidak pernah oleh
-    // aplikasi, supaya tidak ada jalan untuk mendaftarkan diri sendiri.
-    function isStaff() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
+    // Satu akun terikat pada tepat satu tenant. `tenantId`-nya dibaca dari
+    // dokumen penggunanya di sisi server, bukan dari apa pun yang dikirim
+    // browser, jadi tidak ada cara memalsukannya.
+    function isMemberOf(tenantId) {
+      return isActive() && me().tenantId == tenantId;
     }
 
     function isPositiveNumber(value) {
       return value is number && value >= 0;
     }
 
-    // Daftar staf. Setiap orang hanya boleh membaca barisnya sendiri, dan tidak
-    // ada seorang pun yang boleh menulis dari aplikasi.
-    match /staff/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow write: if false;
-    }
+    /* ----------------------------------------------------------- pengguna */
 
-    // Produk dan stok.
-    match /products/{productId} {
-      allow read: if isStaff();
-      allow create, update: if isStaff()
-        && request.resource.data.name is string
+    // Peran 'admin' sengaja tidak termasuk. Tidak ada jalan bagi siapa pun,
+    // termasuk admin yang sudah ada, untuk mengangkat admin baru lewat
+    // aplikasi. Admin hanya lahir dari scripts/seed.mjs yang memakai Admin SDK.
+    function isValidUser() {
+      return request.resource.data.name is string
         && request.resource.data.name.size() > 0
-        && isPositiveNumber(request.resource.data.costPrice)
-        && isPositiveNumber(request.resource.data.sellPrice)
-        && isPositiveNumber(request.resource.data.stock);
-      allow delete: if isStaff();
+        && request.resource.data.tenantId is string
+        && request.resource.data.tenantId.size() > 0
+        && request.resource.data.active is bool
+        && (request.resource.data.role == 'pemilik' || request.resource.data.role == 'kasir');
     }
 
-    // Penjualan. Dokumen tidak boleh diubah setelah dibuat supaya laba historis
-    // tidak bisa dikoreksi diam diam. Pembatalan dilakukan dengan menghapus
-    // dokumen sekaligus mengembalikan stok, bukan dengan mengedit angkanya.
-    match /sales/{saleId} {
-      allow read: if isStaff();
-      allow create: if isStaff()
-        && request.resource.data.cashierId == request.auth.uid
-        && request.resource.data.items is list
-        && request.resource.data.items.size() > 0
-        && isPositiveNumber(request.resource.data.total)
-        && isPositiveNumber(request.resource.data.totalCost);
-      allow update: if false;
-      allow delete: if isStaff();
+    match /users/{uid} {
+      // Membaca baris sendiri sengaja terbuka bagi siapa pun yang sudah login,
+      // dan itu memang harus. Orang yang belum terdaftar perlu mendapat jawaban
+      // "tidak ada" supaya bisa ditolak dengan pesan yang benar. Kalau
+      // permintaannya ditolak aturan, AuthContext membacanya sebagai gangguan
+      // jaringan lalu gagal terbuka, dan orang asing justru ikut masuk.
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+
+      // Tidak ada pendaftaran mandiri. Seluruh pengguna didaftarkan admin.
+      allow create, update: if isAdmin() && isValidUser();
+
+      // Admin tidak boleh menghapus barisnya sendiri: platform bisa kehilangan
+      // admin terakhirnya, dan tidak ada cara memulihkannya dari dalam aplikasi.
+      allow delete: if isAdmin() && request.auth.uid != uid;
     }
 
-    // Resep. Tidak menyimpan harga sama sekali: HPP selalu dihitung ulang dari
-    // harga bahan terkini, jadi resep hanya berisi daftar bahan dan takarannya.
-    match /recipes/{recipeId} {
-      allow read: if isStaff();
-      allow create, update: if isStaff()
-        && request.resource.data.productId is string
-        && request.resource.data.items is list
-        && request.resource.data.items.size() > 0
-        && request.resource.data.yieldQty is number
-        && request.resource.data.yieldQty > 0;
-      allow delete: if isStaff();
+    /* ------------------------------------------------------------- warung */
+
+    match /tenants/{tenantId} {
+      allow read: if isMemberOf(tenantId) || isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0;
+      allow delete: if isAdmin();
+
+      // SEKAT ANTAR WARUNG.
+      //
+      // Tenant adalah bagian dari JALUR dokumen, bukan sekadar field di
+      // dalamnya. Karena itu kueri yang lupa memfilter tenant tidak mungkin
+      // ada: jalurnya sendiri yang menentukan warung mana yang dibaca, dan
+      // isMemberOf() memeriksanya di server pada setiap permintaan.
+      //
+      // Kalau tenant hanya berupa field, keamanan seluruh layanan bergantung
+      // pada setiap kueri di seluruh kode ingat menyertakan filternya. Satu
+      // yang lupa, dan omzet warung tetangga ikut terbaca.
+
+      match /products/{productId} {
+        allow read: if isMemberOf(tenantId);
+        allow create, update: if isMemberOf(tenantId)
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && isPositiveNumber(request.resource.data.costPrice)
+          && isPositiveNumber(request.resource.data.sellPrice)
+          && isPositiveNumber(request.resource.data.stock);
+        allow delete: if isMemberOf(tenantId);
+      }
+
+      // Penjualan. Dokumen tidak boleh diubah setelah dibuat supaya laba
+      // historis tidak bisa dikoreksi diam diam. Pembatalan dilakukan dengan
+      // menghapus dokumen sekaligus mengembalikan stok, bukan dengan mengedit
+      // angkanya.
+      match /sales/{saleId} {
+        allow read: if isMemberOf(tenantId);
+        allow create: if isMemberOf(tenantId)
+          && request.resource.data.cashierId == request.auth.uid
+          && request.resource.data.items is list
+          && request.resource.data.items.size() > 0
+          && isPositiveNumber(request.resource.data.total)
+          && isPositiveNumber(request.resource.data.totalCost);
+        allow update: if false;
+        allow delete: if isMemberOf(tenantId);
+      }
+
+      // Resep. Tidak menyimpan harga sama sekali: HPP selalu dihitung ulang
+      // dari harga bahan terkini, jadi resep hanya berisi daftar bahan dan
+      // takarannya.
+      match /recipes/{recipeId} {
+        allow read: if isMemberOf(tenantId);
+        allow create, update: if isMemberOf(tenantId)
+          && request.resource.data.productId is string
+          && request.resource.data.items is list
+          && request.resource.data.items.size() > 0
+          && request.resource.data.yieldQty is number
+          && request.resource.data.yieldQty > 0;
+        allow delete: if isMemberOf(tenantId);
+      }
+
+      // Produksi. Seperti penjualan, dokumennya tidak boleh diedit supaya HPP
+      // historis tidak bisa diubah diam diam.
+      match /productions/{productionId} {
+        allow read: if isMemberOf(tenantId);
+        allow create: if isMemberOf(tenantId)
+          && request.resource.data.operatorId == request.auth.uid
+          && request.resource.data.items is list
+          && request.resource.data.items.size() > 0
+          && isPositiveNumber(request.resource.data.materialCost)
+          && request.resource.data.yieldQty is number
+          && request.resource.data.yieldQty > 0;
+        allow update: if false;
+        allow delete: if isMemberOf(tenantId);
+      }
+
+      match /expenses/{expenseId} {
+        allow read: if isMemberOf(tenantId);
+        allow create, update: if isMemberOf(tenantId)
+          && request.resource.data.description is string
+          && isPositiveNumber(request.resource.data.amount);
+        allow delete: if isMemberOf(tenantId);
+      }
+
+      // Subkoleksi lain di bawah tenant tidak diberi aturan, jadi ditolak.
     }
 
-    // Produksi. Seperti penjualan, dokumennya tidak boleh diedit supaya HPP
-    // historis tidak bisa diubah diam diam. Koreksi dilakukan dengan
-    // membatalkan produksi, yang mengembalikan stok bahan sekaligus.
-    match /productions/{productionId} {
-      allow read: if isStaff();
-      allow create: if isStaff()
-        && request.resource.data.operatorId == request.auth.uid
-        && request.resource.data.items is list
-        && request.resource.data.items.size() > 0
-        && isPositiveNumber(request.resource.data.materialCost)
-        && request.resource.data.yieldQty is number
-        && request.resource.data.yieldQty > 0;
-      allow update: if false;
-      allow delete: if isStaff();
-    }
-
-    // Beban operasional.
-    match /expenses/{expenseId} {
-      allow read: if isStaff();
-      allow create, update: if isStaff()
-        && request.resource.data.description is string
-        && isPositiveNumber(request.resource.data.amount);
-      allow delete: if isStaff();
-    }
-
-    // Koleksi lain tidak diberi aturan, sehingga otomatis ditolak Firestore.
+    // Koleksi lain di akar, termasuk `staff` dan koleksi datar versi lama,
+    // tidak diberi aturan sehingga otomatis ditolak Firestore.
   }
 }

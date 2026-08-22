@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useTenantId } from '@/contexts/AuthContext'
 import { subscribeProductions } from '@/services/productions'
 import { firestoreErrorMessage } from '@/lib/errors'
 import type { Production } from '@/types'
 
 /** Riwayat produksi pada satu rentang tanggal. */
 export function useProductions(from: Date, to: Date) {
+  const tenantId = useTenantId()
   const [productions, setProductions] = useState<Production[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -17,6 +19,7 @@ export function useProductions(from: Date, to: Date) {
   useEffect(() => {
     setLoading(true)
     return subscribeProductions(
+      tenantId,
       new Date(fromTime),
       new Date(toTime),
       (next) => {
@@ -29,7 +32,7 @@ export function useProductions(from: Date, to: Date) {
         setLoading(false)
       },
     )
-  }, [fromTime, toTime])
+  }, [tenantId, fromTime, toTime])
 
   return { productions, loading, error }
 }

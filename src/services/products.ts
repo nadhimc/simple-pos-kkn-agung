@@ -1,6 +1,5 @@
 import {
   addDoc,
-  collection,
   deleteDoc,
   doc,
   increment,
@@ -13,10 +12,13 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { tenantCollection } from './paths'
 import type { Product, ProductDraft, ProductType } from '@/types'
 
-export const productsRef = collection(db, 'products')
+/** Produk selalu milik satu warung, jadi jalurnya ikut tenant-nya. */
+export function productsRef(tenantId: string) {
+  return tenantCollection(tenantId, 'products')
+}
 
 /** Timestamp dari cache lokal bisa berupa null sesaat sebelum server mengisinya. */
 function toDate(value: unknown): Date {
@@ -48,18 +50,19 @@ export function mapProduct(snapshot: QueryDocumentSnapshot<DocumentData>): Produ
  * langsung terlihat di halaman produk tanpa perlu memuat ulang.
  */
 export function subscribeProducts(
+  tenantId: string,
   onData: (products: Product[]) => void,
   onError: (error: Error) => void,
 ) {
   return onSnapshot(
-    query(productsRef, orderBy('name')),
+    query(productsRef(tenantId), orderBy('name')),
     (snapshot) => onData(snapshot.docs.map(mapProduct)),
     onError,
   )
 }
 
-export async function createProduct(draft: ProductDraft) {
-  await addDoc(productsRef, {
+export async function createProduct(tenantId: string, draft: ProductDraft) {
+  await addDoc(productsRef(tenantId), {
     ...draft,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -72,12 +75,16 @@ export async function createProduct(draft: ProductDraft) {
  * form akan menimpa penjualan yang terjadi di sela-sela itu. Perubahan stok
  * selalu lewat addStock atau setStock.
  */
-export async function updateProduct(id: string, draft: Omit<ProductDraft, 'stock'>) {
-  await updateDoc(doc(productsRef, id), { ...draft, updatedAt: serverTimestamp() })
+export async function updateProduct(
+  tenantId: string,
+  id: string,
+  draft: Omit<ProductDraft, 'stock'>,
+) {
+  await updateDoc(doc(productsRef(tenantId), id), { ...draft, updatedAt: serverTimestamp() })
 }
 
-export async function deleteProduct(id: string) {
-  await deleteDoc(doc(productsRef, id))
+export async function deleteProduct(tenantId: string, id: string) {
+  await deleteDoc(doc(productsRef(tenantId), id))
 }
 
 /**
@@ -87,17 +94,22 @@ export async function deleteProduct(id: string) {
  * Pembelian stok sengaja tidak dicatat sebagai beban: modalnya baru diakui
  * sebagai HPP ketika barangnya terjual.
  */
-export async function addStock(id: string, quantity: number, newCostPrice?: number) {
+export async function addStock(
+  tenantId: string,
+  id: string,
+  quantity: number,
+  newCostPrice?: number,
+) {
   const payload: Record<string, unknown> = {
     stock: increment(quantity),
     updatedAt: serverTimestamp(),
   }
   if (typeof newCostPrice === 'number') payload.costPrice = newCostPrice
 
-  await updateDoc(doc(productsRef, id), payload)
+  await updateDoc(doc(productsRef(tenantId), id), payload)
 }
 
 /** Koreksi stok manual, misalnya setelah opname atau barang rusak. */
-export async function setStock(id: string, stock: number) {
-  await updateDoc(doc(productsRef, id), { stock, updatedAt: serverTimestamp() })
+export async function setStock(tenantId: string, id: string, stock: number) {
+  await updateDoc(doc(productsRef(tenantId), id), { stock, updatedAt: serverTimestamp() })
 }

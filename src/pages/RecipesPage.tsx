@@ -22,6 +22,7 @@ import {
   TableSkeleton,
   toast,
 } from '@/components/ui'
+import { useAuth } from '@/contexts/AuthContext'
 import { RecipeFormModal } from '@/features/recipes/RecipeFormModal'
 import { ProductionModal } from '@/features/recipes/ProductionModal'
 import { useProducts } from '@/hooks/useProducts'
@@ -37,6 +38,7 @@ import { cn } from '@/lib/cn'
 import type { Production, Recipe } from '@/types'
 
 export default function RecipesPage() {
+  const { tenantId } = useAuth()
   const { products, materials, finished, productsById, loading, error } = useProducts()
   const { recipes, loading: recipesLoading, error: recipesError } = useRecipes()
 
@@ -79,7 +81,7 @@ export default function RecipesPage() {
     if (!deleteTarget) return
     setBusy(true)
     try {
-      await deleteRecipe(deleteTarget.id)
+      await deleteRecipe(tenantId, deleteTarget.id)
       toast.success('Resep dihapus.')
       setDeleteTarget(null)
     } catch (caught) {
@@ -93,7 +95,7 @@ export default function RecipesPage() {
     if (!voidTarget) return
     setBusy(true)
     try {
-      await voidProduction(voidTarget, new Set(products.map((item) => item.id)))
+      await voidProduction(tenantId, voidTarget, new Set(products.map((item) => item.id)))
       toast.success(`${voidTarget.productionNo} dibatalkan, stok bahan dikembalikan.`)
       setVoidTarget(null)
     } catch (caught) {

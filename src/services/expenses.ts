@@ -1,6 +1,5 @@
 import {
   addDoc,
-  collection,
   deleteDoc,
   doc,
   onSnapshot,
@@ -13,10 +12,12 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { tenantCollection } from './paths'
 import type { Expense, ExpenseCategory, ExpenseDraft } from '@/types'
 
-export const expensesRef = collection(db, 'expenses')
+export function expensesRef(tenantId: string) {
+  return tenantCollection(tenantId, 'expenses')
+}
 
 function toDate(value: unknown): Date {
   return value instanceof Timestamp ? value.toDate() : new Date()
@@ -36,6 +37,7 @@ export function mapExpense(snapshot: QueryDocumentSnapshot<DocumentData>): Expen
 }
 
 export function subscribeExpenses(
+  tenantId: string,
   from: Date,
   to: Date,
   onData: (expenses: Expense[]) => void,
@@ -43,7 +45,7 @@ export function subscribeExpenses(
 ) {
   return onSnapshot(
     query(
-      expensesRef,
+      expensesRef(tenantId),
       where('date', '>=', Timestamp.fromDate(from)),
       where('date', '<=', Timestamp.fromDate(to)),
       orderBy('date', 'desc'),
@@ -53,8 +55,12 @@ export function subscribeExpenses(
   )
 }
 
-export async function createExpense(draft: ExpenseDraft, createdBy: string) {
-  await addDoc(expensesRef, {
+export async function createExpense(
+  tenantId: string,
+  draft: ExpenseDraft,
+  createdBy: string,
+) {
+  await addDoc(expensesRef(tenantId), {
     ...draft,
     date: Timestamp.fromDate(draft.date),
     createdBy,
@@ -62,13 +68,13 @@ export async function createExpense(draft: ExpenseDraft, createdBy: string) {
   })
 }
 
-export async function updateExpense(id: string, draft: ExpenseDraft) {
-  await updateDoc(doc(expensesRef, id), {
+export async function updateExpense(tenantId: string, id: string, draft: ExpenseDraft) {
+  await updateDoc(doc(expensesRef(tenantId), id), {
     ...draft,
     date: Timestamp.fromDate(draft.date),
   })
 }
 
-export async function deleteExpense(id: string) {
-  await deleteDoc(doc(expensesRef, id))
+export async function deleteExpense(tenantId: string, id: string) {
+  await deleteDoc(doc(expensesRef(tenantId), id))
 }

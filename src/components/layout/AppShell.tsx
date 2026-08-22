@@ -1,7 +1,8 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/cn'
-import { STORE_NAME } from '@/lib/firebase'
+import { APP_NAME } from '@/lib/firebase'
+import { useAuth } from '@/contexts/AuthContext'
 import { CardSkeleton, Skeleton, ToastViewport } from '@/components/ui'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
@@ -39,7 +40,12 @@ function PageFallback() {
  */
 export function AppShell() {
   const location = useLocation()
-  const current = findNavItem(location.pathname)
+  const { tenant, isAdmin } = useAuth()
+  const current = findNavItem(location.pathname, isAdmin)
+
+  // Nama warung, bukan nama layanan: satu pemasangan aplikasi ini melayani
+  // banyak warung, dan yang perlu dikenali kasir adalah warungnya sendiri.
+  const brandName = tenant?.name ?? APP_NAME
 
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem(COLLAPSE_KEY) === 'true',
@@ -52,8 +58,8 @@ export function AppShell() {
 
   // Judul tab mengikuti halaman aktif, sumbernya tetap navigation.ts.
   useEffect(() => {
-    document.title = current ? `${current.label} · ${STORE_NAME}` : STORE_NAME
-  }, [current])
+    document.title = current ? `${current.label} · ${brandName}` : brandName
+  }, [current, brandName])
 
   // Tutup drawer saat pindah halaman supaya tidak menutupi konten baru.
   useEffect(() => {
@@ -68,6 +74,8 @@ export function AppShell() {
       )}
     >
       <Sidebar
+        brandName={brandName}
+        isAdmin={isAdmin}
         collapsed={collapsed}
         onToggleCollapsed={() => setCollapsed((value) => !value)}
         mobileOpen={mobileNavOpen}

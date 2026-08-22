@@ -12,6 +12,7 @@ import {
   TableSkeleton,
   toast,
 } from '@/components/ui'
+import { useAuth } from '@/contexts/AuthContext'
 import { ReceiptModal } from '@/features/sales/ReceiptModal'
 import {
   PERIOD_OPTIONS,
@@ -32,6 +33,7 @@ const METHOD_LABEL: Record<Sale['paymentMethod'], string> = {
 }
 
 export default function TransactionsPage() {
+  const { tenantId } = useAuth()
   const [period, setPeriod] = useState<PeriodKey>('hari-ini')
   const { from, to } = useMemo(() => resolvePeriod(period), [period])
   const { sales, loading, error } = usePeriodData(from, to)
@@ -53,7 +55,7 @@ export default function TransactionsPage() {
     if (!voidTarget) return
     setVoiding(true)
     try {
-      await voidSale(voidTarget, new Set(products.map((product) => product.id)))
+      await voidSale(tenantId, voidTarget, new Set(products.map((product) => product.id)))
       toast.success(`${voidTarget.invoiceNo} dibatalkan dan stoknya dikembalikan.`)
       setVoidTarget(null)
     } catch (caught) {

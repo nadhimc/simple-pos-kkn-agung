@@ -13,6 +13,7 @@ import {
   TableSkeleton,
   toast,
 } from '@/components/ui'
+import { useAuth } from '@/contexts/AuthContext'
 import { ExpenseFormModal } from '@/features/expenses/ExpenseFormModal'
 import { PERIOD_OPTIONS, resolvePeriod, usePeriodData, type PeriodKey } from '@/hooks/usePeriod'
 import { deleteExpense } from '@/services/expenses'
@@ -22,6 +23,7 @@ import { groupExpensesByCategory } from '@/lib/profit'
 import type { Expense } from '@/types'
 
 export default function ExpensesPage() {
+  const { tenantId } = useAuth()
   const [period, setPeriod] = useState<PeriodKey>('bulan-ini')
   const { from, to } = useMemo(() => resolvePeriod(period), [period])
   const { expenses, loading, error } = usePeriodData(from, to)
@@ -38,7 +40,7 @@ export default function ExpensesPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await deleteExpense(deleteTarget.id)
+      await deleteExpense(tenantId, deleteTarget.id)
       toast.success('Beban dihapus.')
       setDeleteTarget(null)
     } catch (caught) {

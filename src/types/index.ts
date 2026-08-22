@@ -3,6 +3,55 @@
  * karena rupiah tidak lagi memakai pecahan desimal di transaksi ritel.
  */
 
+/* -------------------------------------------------------- warung & pengguna */
+
+/**
+ * Satu warung. Seluruh data usahanya hidup di bawah `tenants/{id}/…`, jadi
+ * tenant adalah bagian dari jalur dokumen dan bukan sekadar field. Itu yang
+ * membuat kueri tidak mungkin lupa memfilter warung.
+ */
+export interface Tenant {
+  id: string
+  name: string
+  ownerName: string
+  phone: string
+  address: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type TenantDraft = Omit<Tenant, 'id' | 'createdAt' | 'updatedAt'>
+
+/**
+ * Peran menentukan dunia mana yang dilihat orang ini.
+ *
+ * `admin` adalah admin platform: ia mengelola warung dan pengguna, dan sengaja
+ * tidak bisa membaca pembukuan warung mana pun. Ia satu satunya peran yang
+ * `tenantId`-nya kosong, dan satu satunya yang tidak bisa dibuat dari dalam
+ * aplikasi.
+ *
+ * `pemilik` dan `kasir` adalah orang warung. Keduanya belum dibedakan haknya:
+ * untuk sekarang setiap orang warung boleh membuka seluruh halaman warungnya.
+ */
+export type UserRole = 'admin' | 'pemilik' | 'kasir'
+
+export interface AppUser {
+  uid: string
+  name: string
+  /** Terisi kalau akunnya dibuat dengan email. Boleh kosong. */
+  email: string
+  /** Format E.164, misalnya +6285156657853. Terisi kalau masuk lewat nomor HP. */
+  phone: string
+  role: UserRole
+  /** Kosong hanya untuk admin platform. */
+  tenantId: string
+  /** Akses dicabut dengan mematikan ini, bukan menghapus barisnya. */
+  active: boolean
+  createdAt: Date | null
+}
+
+export type AppUserDraft = Omit<AppUser, 'uid' | 'createdAt'>
+
 /**
  * Bahan baku tidak pernah muncul di layar kasir. Ia hanya dipakai lewat resep
  * untuk memproduksi barang jadi. Barang jadi mencakup dua hal sekaligus:

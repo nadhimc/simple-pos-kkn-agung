@@ -11,6 +11,7 @@ import {
   toast,
 } from '@/components/ui'
 import { createRecipe, updateRecipe } from '@/services/recipes'
+import { useAuth } from '@/contexts/AuthContext'
 import { writeErrorMessage } from '@/lib/errors'
 import { computeHpp } from '@/lib/hpp'
 import { compatibleUnits, defaultRecipeUnit } from '@/lib/units'
@@ -45,6 +46,7 @@ export function RecipeFormModal({
   finished,
   productsById,
 }: RecipeFormModalProps) {
+  const { tenantId } = useAuth()
   const [productId, setProductId] = useState('')
   const [yieldQty, setYieldQty] = useState('10')
   const [note, setNote] = useState('')
@@ -138,10 +140,10 @@ export function RecipeFormModal({
     setSaving(true)
     try {
       if (recipe) {
-        await updateRecipe(recipe.id, draft)
+        await updateRecipe(tenantId, recipe.id, draft)
         toast.success(`Resep ${product.name} diperbarui.`)
       } else {
-        await createRecipe(draft)
+        await createRecipe(tenantId, draft)
         toast.success(`Resep ${product.name} dibuat.`)
       }
       onClose()

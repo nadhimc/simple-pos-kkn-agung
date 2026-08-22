@@ -7,14 +7,20 @@ import {
   PackageIcon,
   ReceiptIcon,
   ShoppingCartSimpleIcon,
+  StorefrontIcon,
+  UsersIcon,
   WalletIcon,
 } from '@phosphor-icons/react'
 
 /**
  * SATU SUMBER KEBENARAN UNTUK NAVIGASI.
  *
+ * Ada dua daftar karena ada dua dunia: orang warung melihat kasir dan
+ * pembukuannya, admin platform melihat daftar warung dan penggunanya. Keduanya
+ * tidak pernah bercampur dalam satu sidebar.
+ *
  * Menambah halaman baru cukup tiga langkah:
- *   1. tambahkan entri di sini,
+ *   1. tambahkan entri di daftar yang sesuai,
  *   2. daftarkan <Route> dengan `path` yang sama di src/App.tsx,
  *   3. buat komponen halamannya di src/pages.
  *
@@ -42,7 +48,8 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-export const navigation: NavGroup[] = [
+/** Menu orang warung. */
+export const tenantNavigation: NavGroup[] = [
   {
     label: 'Operasional',
     items: [
@@ -103,8 +110,37 @@ export const navigation: NavGroup[] = [
   },
 ]
 
-export const navItems: NavItem[] = navigation.flatMap((group) => group.items)
+/**
+ * Menu admin platform. Sengaja tidak berisi satu pun halaman pembukuan: admin
+ * mengelola warung, bukan membaca isinya, dan firestore.rules menegakkan hal
+ * yang sama di sisi server.
+ */
+export const adminNavigation: NavGroup[] = [
+  {
+    label: 'Platform',
+    items: [
+      {
+        path: '/admin',
+        label: 'Warung',
+        description: 'Daftar warung yang memakai layanan ini.',
+        icon: StorefrontIcon,
+      },
+      {
+        path: '/admin/pengguna',
+        label: 'Pengguna',
+        description: 'Daftarkan dan kelola siapa yang boleh membuka tiap warung.',
+        icon: UsersIcon,
+      },
+    ],
+  },
+]
 
-export function findNavItem(pathname: string): NavItem | undefined {
-  return navItems.find((item) => item.path === pathname)
+export function navigationFor(isAdmin: boolean): NavGroup[] {
+  return isAdmin ? adminNavigation : tenantNavigation
+}
+
+export function findNavItem(pathname: string, isAdmin: boolean): NavItem | undefined {
+  return navigationFor(isAdmin)
+    .flatMap((group) => group.items)
+    .find((item) => item.path === pathname)
 }

@@ -1,5 +1,4 @@
 import {
-  collection,
   doc,
   increment,
   onSnapshot,
@@ -14,9 +13,12 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { productsRef } from './products'
+import { tenantCollection } from './paths'
 import type { PaymentMethod, Sale, SaleItem } from '@/types'
 
-export const salesRef = collection(db, 'sales')
+export function salesRef(tenantId: string) {
+  return tenantCollection(tenantId, 'sales')
+}
 
 function toDate(value: unknown): Date {
   return value instanceof Timestamp ? value.toDate() : new Date()
@@ -74,7 +76,7 @@ export interface NewSaleInput {
  * Konsekuensinya stok tidak bisa dikunci di sisi server, jadi pemeriksaan
  * "stok cukup" dilakukan di layar kasir memakai data snapshot terbaru.
  */
-export async function createSale(input: NewSaleInput): Promise<Sale> {
+export async function createSale(tenantId: string, input: NewSaleInput): Promise<Sale> {
   const subtotal = input.items.reduce((total, item) => total + item.subtotal, 0)
   const discount = Math.min(Math.max(input.discount, 0), subtotal)
   const total = subtotal - discount
@@ -84,7 +86,7 @@ export async function createSale(input: NewSaleInput): Promise<Sale> {
   )
 
   const invoiceNo = generateInvoiceNo()
-  const saleDoc = doc(salesRef)
+  const saleDoc = doc(salesRef(tenantId))
   const batch = writeBatch(db)
 
   batch.set(saleDoc, {
@@ -105,7 +107,7 @@ export async function createSale(input: NewSaleInput): Promise<Sale> {
   })
 
   for (const item of input.items) {
-    batch.update(doc(productsRef, item.productId), {
+    batch.update(doc(productsRef(tenantId), item.productId), {
       stock: increment(-item.qty),
       updatedAt: serverTimestamp(),
     })
@@ -141,13 +143,17 @@ export async function createSale(input: NewSaleInput): Promise<Sale> {
  * yang sudah dihapus dilewati, sebab batch.update ke dokumen yang tidak ada
  * akan menggagalkan seluruh batch dan membuat struk gagal dibatalkan.
  */
-export async function voidSale(sale: Sale, existingProductIds: Set<string>) {
+export async function voidSale(
+  tenantId: string,
+  sale: Sale,
+  existingProductIds: Set<string>,
+) {
   const batch = writeBatch(db)
-  batch.delete(doc(salesRef, sale.id))
+  batch.delete(doc(salesRef(tenantId), sale.id))
 
   for (const item of sale.items) {
     if (!existingProductIds.has(item.productId)) continue
-    batch.update(doc(productsRef, item.productId), {
+    batch.update(doc(productsRef(tenantId), item.productId), {
       stock: increment(item.qty),
       updatedAt: serverTimestamp(),
     })
@@ -158,6 +164,7 @@ export async function voidSale(sale: Sale, existingProductIds: Set<string>) {
 
 /** Penjualan dalam rentang tanggal, terbaru di atas. */
 export function subscribeSales(
+  tenantId: string,
   from: Date,
   to: Date,
   onData: (sales: Sale[]) => void,
@@ -165,7 +172,7 @@ export function subscribeSales(
 ) {
   return onSnapshot(
     query(
-      salesRef,
+      salesRef(tenantId),
       where('createdAt', '>=', Timestamp.fromDate(from)),
       where('createdAt', '<=', Timestamp.fromDate(to)),
       orderBy('createdAt', 'desc'),

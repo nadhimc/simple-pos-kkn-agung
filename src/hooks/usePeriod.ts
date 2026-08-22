@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTenantId } from '@/contexts/AuthContext'
 import { subscribeSales } from '@/services/sales'
 import { subscribeExpenses } from '@/services/expenses'
 import { firestoreErrorMessage } from '@/lib/errors'
@@ -43,6 +44,7 @@ interface PeriodDataResult {
  * Dipakai dashboard, laporan laba rugi, dan riwayat transaksi.
  */
 export function usePeriodData(from: Date, to: Date): PeriodDataResult {
+  const tenantId = useTenantId()
   const [sales, setSales] = useState<Sale[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [salesLoading, setSalesLoading] = useState(true)
@@ -57,6 +59,7 @@ export function usePeriodData(from: Date, to: Date): PeriodDataResult {
   useEffect(() => {
     setSalesLoading(true)
     return subscribeSales(
+      tenantId,
       new Date(fromTime),
       new Date(toTime),
       (next) => {
@@ -68,11 +71,12 @@ export function usePeriodData(from: Date, to: Date): PeriodDataResult {
         setSalesLoading(false)
       },
     )
-  }, [fromTime, toTime])
+  }, [tenantId, fromTime, toTime])
 
   useEffect(() => {
     setExpensesLoading(true)
     return subscribeExpenses(
+      tenantId,
       new Date(fromTime),
       new Date(toTime),
       (next) => {
@@ -84,7 +88,7 @@ export function usePeriodData(from: Date, to: Date): PeriodDataResult {
         setExpensesLoading(false)
       },
     )
-  }, [fromTime, toTime])
+  }, [tenantId, fromTime, toTime])
 
   return useMemo(
     () => ({ sales, expenses, loading: salesLoading || expensesLoading, error }),

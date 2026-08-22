@@ -4,7 +4,9 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import {
   LOGIN_PATH,
   RedirectIfAuthenticated,
+  RequireAdmin,
   RequireAuth,
+  RequireTenantUser,
 } from '@/components/routing/AuthGuards'
 import { AppShell } from '@/components/layout/AppShell'
 
@@ -18,20 +20,28 @@ const RecipesPage = lazy(() => import('@/pages/RecipesPage'))
 const TransactionsPage = lazy(() => import('@/pages/TransactionsPage'))
 const ExpensesPage = lazy(() => import('@/pages/ExpensesPage'))
 const ReportsPage = lazy(() => import('@/pages/ReportsPage'))
+const AdminTenantsPage = lazy(() => import('@/pages/AdminTenantsPage'))
+const AdminUsersPage = lazy(() => import('@/pages/AdminUsersPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 /**
  * PETA RUTE
  *
- * Hanya ada dua wilayah, dan keduanya dijaga di tingkat rute, bukan di dalam
- * komponen halaman:
+ * Seluruh penjagaan ada di tingkat rute, tidak satu pun di dalam komponen
+ * halaman, jadi tidak ada halaman yang bisa lupa dijaga:
  *
  *   RedirectIfAuthenticated  halaman masuk, tertutup bagi yang sudah punya sesi
  *   RequireAuth              seluruh aplikasi, tertutup bagi yang belum masuk
+ *   RequireTenantUser        halaman warung, tertutup bagi admin platform
+ *   RequireAdmin             halaman platform, tertutup bagi orang warung
  *
- * Menambah halaman: taruh <Route> baru di dalam <AppShell>, dengan path yang
- * sama persis seperti entri di src/components/layout/navigation.ts. Halaman itu
- * ikut terlindungi otomatis, tidak perlu menulis pengecekan sesi sendiri.
+ * Dua wilayah terakhir memakai kerangka yang sama tapi tidak pernah saling
+ * terlihat. Pemisahannya bukan sekadar menyembunyikan menu: firestore.rules
+ * menegakkan batas yang sama di server, jadi admin yang memaksa membuka
+ * /laporan tetap tidak mendapat satu angka pun.
+ *
+ * Menambah halaman: taruh <Route> baru di wilayah yang sesuai, dengan path yang
+ * sama persis seperti entri di src/components/layout/navigation.ts.
  */
 export default function App() {
   return (
@@ -45,13 +55,21 @@ export default function App() {
 
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
-                <Route index element={<DashboardPage />} />
-                <Route path="kasir" element={<CashierPage />} />
-                <Route path="produk" element={<ProductsPage />} />
-                <Route path="resep" element={<RecipesPage />} />
-                <Route path="transaksi" element={<TransactionsPage />} />
-                <Route path="beban" element={<ExpensesPage />} />
-                <Route path="laporan" element={<ReportsPage />} />
+                <Route element={<RequireTenantUser />}>
+                  <Route index element={<DashboardPage />} />
+                  <Route path="kasir" element={<CashierPage />} />
+                  <Route path="produk" element={<ProductsPage />} />
+                  <Route path="resep" element={<RecipesPage />} />
+                  <Route path="transaksi" element={<TransactionsPage />} />
+                  <Route path="beban" element={<ExpensesPage />} />
+                  <Route path="laporan" element={<ReportsPage />} />
+                </Route>
+
+                <Route path="admin" element={<RequireAdmin />}>
+                  <Route index element={<AdminTenantsPage />} />
+                  <Route path="pengguna" element={<AdminUsersPage />} />
+                </Route>
+
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Route>

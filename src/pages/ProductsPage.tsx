@@ -22,6 +22,7 @@ import {
   TextField,
   toast,
 } from '@/components/ui'
+import { useAuth } from '@/contexts/AuthContext'
 import { ProductFormModal } from '@/features/products/ProductFormModal'
 import { StockModal } from '@/features/products/StockModal'
 import { useProducts } from '@/hooks/useProducts'
@@ -46,6 +47,7 @@ function stockTone(product: Product) {
 }
 
 export default function ProductsPage() {
+  const { tenantId } = useAuth()
   const { products, categories, loading, error } = useProducts()
 
   const [search, setSearch] = useState('')
@@ -105,7 +107,7 @@ export default function ProductsPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await deleteProduct(deleteTarget.id)
+      await deleteProduct(tenantId, deleteTarget.id)
       toast.success(`${deleteTarget.name} dihapus.`)
       setDeleteTarget(null)
     } catch (caught) {

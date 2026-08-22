@@ -22,7 +22,7 @@ export function ProductionModal({
   productsById,
   onProduced,
 }: ProductionModalProps) {
-  const { user, staff } = useAuth()
+  const { user, appUser, tenantId } = useAuth()
   const [batch, setBatch] = useState('1')
   const [actualYield, setActualYield] = useState('')
   const [note, setNote] = useState('')
@@ -75,7 +75,7 @@ export function ProductionModal({
 
     setSubmitting(true)
     try {
-      const production = await createProduction({
+      const production = await createProduction(tenantId, {
         product,
         recipeId: recipe.id,
         items: breakdown.lines.map((line) => ({
@@ -93,7 +93,7 @@ export function ProductionModal({
         yieldUnit: product.unit,
         costPerUnit: breakdown.costPerUnit,
         operatorId: user.uid,
-        operatorName: displayNameOf(user, staff),
+        operatorName: displayNameOf(user, appUser),
         note: note.trim(),
       })
       onProduced(production)

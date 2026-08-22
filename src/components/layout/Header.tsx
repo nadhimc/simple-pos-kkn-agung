@@ -12,6 +12,7 @@ import { cn } from '@/lib/cn'
 import { useTheme } from '@/hooks/useTheme'
 import { displayNameOf, useAuth } from '@/contexts/AuthContext'
 import { Badge, Button, IconButton } from '@/components/ui'
+import { formatPhone } from '@/lib/phone'
 import type { NavItem } from './navigation'
 
 interface HeaderProps {
@@ -20,7 +21,7 @@ interface HeaderProps {
 }
 
 function UserMenu() {
-  const { user, staff, signOutUser } = useAuth()
+  const { user, appUser, tenant, signOutUser } = useAuth()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -56,7 +57,7 @@ function UserMenu() {
       >
         <UserCircleIcon size={26} weight="regular" className="shrink-0" />
         <span className="hidden max-w-32 truncate text-sm font-medium sm:block">
-          {displayNameOf(user, staff)}
+          {displayNameOf(user, appUser)}
         </span>
       </button>
 
@@ -68,15 +69,20 @@ function UserMenu() {
           <div className="border-b border-border px-4 py-3">
             <div className="flex items-center justify-between gap-2">
               <p className="truncate text-sm font-medium text-ink">
-                {displayNameOf(user, staff)}
+                {displayNameOf(user, appUser)}
               </p>
-              {staff ? (
+              {appUser ? (
                 <Badge tone="accent" className="capitalize">
-                  {staff.role}
+                  {appUser.role}
                 </Badge>
               ) : null}
             </div>
-            <p className="truncate text-xs text-ink-muted">{user?.email}</p>
+            <p className="truncate text-xs text-ink-muted">
+              {user?.email || formatPhone(user?.phoneNumber ?? '')}
+            </p>
+            {tenant ? (
+              <p className="truncate text-xs text-ink-subtle">{tenant.name}</p>
+            ) : null}
           </div>
           <button
             type="button"
@@ -99,6 +105,7 @@ function UserMenu() {
  */
 export function Header({ current, onOpenMobileNav }: HeaderProps) {
   const { theme, toggleTheme } = useTheme()
+  const { isAdmin } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -120,7 +127,8 @@ export function Header({ current, onOpenMobileNav }: HeaderProps) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
-        {location.pathname !== '/kasir' ? (
+        {/* Admin tidak punya layar kasir, jadi pintasannya pun tidak ada. */}
+        {!isAdmin && location.pathname !== '/kasir' ? (
           <Button
             size="sm"
             className="hidden sm:inline-flex"

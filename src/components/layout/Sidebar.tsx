@@ -1,11 +1,13 @@
 import { NavLink } from 'react-router-dom'
 import { CaretLeftIcon, XIcon } from '@phosphor-icons/react'
 import { cn } from '@/lib/cn'
-import { STORE_NAME } from '@/lib/firebase'
-import { navigation } from './navigation'
+import { navigationFor } from './navigation'
 import { BrandMark } from './BrandMark'
 
 interface SidebarProps {
+  /** Nama warung yang sedang dibuka, atau nama layanan untuk admin. */
+  brandName: string
+  isAdmin: boolean
   /** Rail ikon di desktop. Tidak berlaku di drawer mobile. */
   collapsed: boolean
   onToggleCollapsed: () => void
@@ -15,15 +17,17 @@ interface SidebarProps {
 }
 
 function NavList({
+  isAdmin,
   collapsed,
   onNavigate,
 }: {
+  isAdmin: boolean
   collapsed: boolean
   onNavigate?: () => void
 }) {
   return (
     <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-5">
-      {navigation.map((group) => (
+      {navigationFor(isAdmin).map((group) => (
         <div key={group.label}>
           {!collapsed ? (
             <p className="px-3 pb-2 text-[11px] font-medium tracking-wide text-sidebar-ink/70 uppercase">
@@ -38,7 +42,7 @@ function NavList({
               <li key={item.path}>
                 <NavLink
                   to={item.path}
-                  end={item.path === '/'}
+                  end={item.path === '/' || item.path === '/admin'}
                   onClick={onNavigate}
                   title={collapsed ? item.label : undefined}
                   className={({ isActive }) =>
@@ -80,6 +84,8 @@ function NavList({
 }
 
 export function Sidebar({
+  brandName,
+  isAdmin,
   collapsed,
   onToggleCollapsed,
   mobileOpen,
@@ -95,10 +101,10 @@ export function Sidebar({
             collapsed ? 'justify-center px-2' : 'px-4',
           )}
         >
-          <BrandMark storeName={STORE_NAME} tone="dark" compact={collapsed} />
+          <BrandMark storeName={brandName} tone="dark" compact={collapsed} />
         </div>
 
-        <NavList collapsed={collapsed} />
+        <NavList isAdmin={isAdmin} collapsed={collapsed} />
 
         <div className="shrink-0 border-t border-sidebar-border p-3">
           <button
@@ -132,7 +138,7 @@ export function Sidebar({
           />
           <aside className="relative flex h-full w-72 max-w-[85vw] flex-col bg-sidebar shadow-e3">
             <div className="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border pr-2 pl-4">
-              <BrandMark storeName={STORE_NAME} tone="dark" />
+              <BrandMark storeName={brandName} tone="dark" />
               <button
                 type="button"
                 aria-label="Tutup menu"
@@ -142,7 +148,7 @@ export function Sidebar({
                 <XIcon size={20} weight="bold" />
               </button>
             </div>
-            <NavList collapsed={false} onNavigate={onCloseMobile} />
+            <NavList isAdmin={isAdmin} collapsed={false} onNavigate={onCloseMobile} />
           </aside>
         </div>
       ) : null}

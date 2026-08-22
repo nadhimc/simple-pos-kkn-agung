@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTenantId } from '@/contexts/AuthContext'
 import { subscribeProducts } from '@/services/products'
 import { firestoreErrorMessage } from '@/lib/errors'
 import type { Product } from '@/types'
@@ -17,13 +18,20 @@ interface UseProductsResult {
 }
 
 /** Satu langganan real time ke koleksi produk, dipakai kasir dan halaman stok. */
+/*
+  tenantId diambil sendiri di dalam hook, bukan dititipkan pemanggil. Halaman
+  jadi tidak perlu tahu apa apa soal tenant, dan tidak ada halaman yang bisa
+  lupa mengoper warungnya lalu diam diam membaca data warung lain.
+*/
 export function useProducts(): UseProductsResult {
+  const tenantId = useTenantId()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     return subscribeProducts(
+      tenantId,
       (next) => {
         setProducts(next)
         setError('')
@@ -34,7 +42,7 @@ export function useProducts(): UseProductsResult {
         setLoading(false)
       },
     )
-  }, [])
+  }, [tenantId])
 
   const categories = useMemo(() => {
     const unique = new Set(products.map((product) => product.category).filter(Boolean))

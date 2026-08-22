@@ -1,20 +1,24 @@
 #!/usr/bin/env node
 /**
- * Pengisi data awal Firestore.
+ * Pengisi dan pembersih data Firestore.
  *
- * Kenapa perlu skrip, bukan lewat aplikasi: firestore.rules menutup koleksi
- * `staff` dari sisi klien (`allow write: if false`), supaya tidak ada orang yang
- * bisa mendaftarkan dirinya sendiri jadi staf. Konsekuensinya staf pertama harus
- * dibuat dari luar aplikasi. Skrip ini memakai Firebase Admin SDK, yang berjalan
- * dengan kunci service account dan memang melewati Security Rules.
+ * Kenapa perlu skrip, bukan lewat aplikasi: firestore.rules hanya mengizinkan
+ * admin platform menulis ke koleksi `users`, dan peran `admin` sendiri sengaja
+ * ditolak aturannya. Artinya admin pertama tidak mungkin lahir dari dalam
+ * aplikasi, dan itu memang disengaja: kalau bisa, siapa pun yang berhasil login
+ * bisa mengangkat dirinya sendiri jadi admin seluruh layanan.
  *
- * Contoh:
- *   node scripts/seed.mjs --email pemilik@toko.id --password rahasia123 --name "Bu Sri"
- *   node scripts/seed.mjs --email kasir@toko.id --role kasir
- *   node scripts/seed.mjs --email pemilik@toko.id --with-products
+ * Skrip ini memakai Firebase Admin SDK, yang berjalan dengan kunci service
+ * account dan memang melewati Security Rules.
  *
- * Skrip ini aman dijalankan berulang kali. Dokumen staf ditimpa dengan merge,
- * dan produk contoh dilewati kalau kodenya sudah ada.
+ * Perintah:
+ *   node scripts/seed.mjs admin  --email admin@x.id --password rahasia123 --name "Admin"
+ *   node scripts/seed.mjs warung --tenant "Warung Gendis" --email agung@x.id --password rahasia123
+ *   node scripts/seed.mjs warung --tenant "Warung Gendis" --phone 085156657853 --with-products
+ *   node scripts/seed.mjs reset  --yes
+ *
+ * Aman dijalankan berulang: dokumen ditimpa dengan merge, warung dicari dulu
+ * berdasarkan namanya, dan produk contoh dilewati kalau kodenya sudah ada.
  *
  * Skrip ini TIDAK PERNAH menulis ke koleksi `sales`. Data penjualan palsu akan
  * merusak laporan laba rugi yang sesungguhnya.
@@ -26,42 +30,58 @@ import { cert, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 
-const { values } = parseArgs({
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
   options: {
+    tenant: { type: 'string' },
     email: { type: 'string' },
+    phone: { type: 'string' },
     name: { type: 'string' },
     role: { type: 'string', default: 'pemilik' },
     password: { type: 'string' },
     key: { type: 'string' },
     'with-products': { type: 'boolean', default: false },
+    all: { type: 'boolean', default: false },
+    yes: { type: 'boolean', default: false },
     help: { type: 'boolean', default: false },
   },
 })
 
 const USAGE = `
 Pemakaian:
-  node scripts/seed.mjs --email <email staf> [pilihan]
+  node scripts/seed.mjs <perintah> [pilihan]
+
+Perintah:
+  admin     Membuat admin platform. Hanya bisa dari sini, tidak dari aplikasi.
+  warung    Membuat warung sekaligus orang yang mengelolanya.
+  reset     Menghapus data. Perlu --yes.
 
 Pilihan:
-  --email <email>       Wajib. Akun yang didaftarkan sebagai staf.
-  --name <nama>         Nama tampilan di struk. Default: bagian depan email.
-  --role <peran>        pemilik atau kasir. Default: pemilik.
-  --password <sandi>    Buat akun email/password baru kalau emailnya belum ada.
-                        Kosongkan kalau akunnya sudah pernah masuk lewat Google.
-  --with-products       Ikut mengisi contoh bahan baku, barang jadi, dan produk
-                        olahan. Semuanya boleh dihapus nanti.
+  --tenant <nama>       Nama warung. Wajib untuk perintah warung.
+  --email <email>       Akun email. Untuk admin wajib.
+  --phone <nomor>       Akun nomor HP, misalnya 085156657853.
+                        Isi salah satu saja, email atau phone.
+  --name <nama>         Nama tampilan di struk. Default: dari email atau nomor.
+  --role <peran>        pemilik atau kasir. Default: pemilik. Diabaikan untuk admin.
+  --password <sandi>    Kata sandi untuk akun email baru. Minimal 6 karakter.
+  --with-products       Ikut mengisi contoh bahan baku dan barang jadi ke warungnya.
+  --all                 Untuk reset: ikut menghapus tenants dan users.
+  --yes                 Untuk reset: konfirmasi bahwa datanya memang mau dihapus.
   --key <path>          Berkas kunci service account.
                         Default: ./serviceAccountKey.json atau
                         variabel GOOGLE_APPLICATION_CREDENTIALS.
 `
 
-if (values.help || !values.email) {
+const command = positionals[0]
+
+if (values.help || !command) {
   console.log(USAGE)
   process.exit(values.help ? 0 : 1)
 }
 
-if (values.role !== 'pemilik' && values.role !== 'kasir') {
-  console.error(`Peran "${values.role}" tidak dikenal. Isi pemilik atau kasir.`)
+if (!['admin', 'warung', 'reset'].includes(command)) {
+  console.error(`Perintah "${command}" tidak dikenal.`)
+  console.log(USAGE)
   process.exit(1)
 }
 
@@ -149,67 +169,219 @@ try {
 
 console.log(`Proyek: ${serviceAccount.project_id}\n`)
 
-/* --------------------------------------------------------------- akun staf */
+/* -------------------------------------------------------------------- utilitas */
 
-const email = values.email.trim().toLowerCase()
-let user
+/** 0851… jadi +62851…, bentuk yang dipakai Firebase Auth. Sama seperti src/lib/phone.ts. */
+function toE164(input) {
+  const trimmed = String(input).trim()
+  const digits = trimmed.replace(/\D/g, '')
+  if (!digits) return ''
+  if (trimmed.startsWith('+')) return `+${digits}`
+  if (digits.startsWith('0')) return `+62${digits.slice(1)}`
+  if (digits.startsWith('62')) return `+${digits}`
+  return `+62${digits}`
+}
 
-try {
-  user = await auth.getUserByEmail(email)
-  console.log(`Akun ditemukan: ${email}`)
-} catch (error) {
-  if (error.code && error.code !== 'auth/user-not-found') fail(explain(error))
-  if (!error.code) fail(explain(error))
+/**
+ * Mencari akun yang sudah ada, atau membuatnya. Admin SDK bisa membuat akun
+ * nomor HP tanpa OTP, sesuatu yang tidak bisa dilakukan aplikasi: dari browser,
+ * nomor HP selalu harus dibuktikan pemilik nomornya.
+ */
+async function findOrCreateAccount({ email, phone, password, name }) {
+  if (email) {
+    try {
+      const found = await auth.getUserByEmail(email)
+      console.log(`Akun ditemukan: ${email}`)
+      return found
+    } catch (error) {
+      if (error.code !== 'auth/user-not-found') fail(explain(error))
+    }
 
-  if (!values.password) {
-    console.error(`
-Akun ${email} belum ada di Firebase Authentication.
+    if (!password) {
+      fail(`Akun ${email} belum ada. Jalankan ulang dengan --password untuk membuatnya.`)
+    }
 
-Dua cara melanjutkan:
-  1. Jalankan ulang dengan --password untuk membuat akun email/password baru.
-  2. Atau masuk sekali ke aplikasi dengan akun Google itu. Aplikasi akan
-     menolak karena belum terdaftar sebagai staf, tapi akunnya sudah tercipta
-     di Authentication. Setelah itu jalankan skrip ini lagi tanpa --password.
-`)
-    process.exit(1)
+    try {
+      const created = await auth.createUser({ email, password, displayName: name })
+      console.log(`Akun dibuat: ${email}`)
+      return created
+    } catch (error) {
+      if (error.code === 'auth/invalid-password') {
+        fail('Kata sandi terlalu pendek. Firebase mensyaratkan minimal 6 karakter.')
+      }
+      if (error.code === 'auth/invalid-email') fail(`Format email "${email}" tidak valid.`)
+      fail(explain(error))
+    }
   }
 
   try {
-    user = await auth.createUser({
-      email,
-      password: values.password,
-      displayName: values.name,
-    })
-  } catch (caught) {
-    if (caught.code === 'auth/invalid-password') {
-      fail('Kata sandi terlalu pendek. Firebase mensyaratkan minimal 6 karakter.')
-    }
-    if (caught.code === 'auth/invalid-email') {
-      fail(`Format email "${email}" tidak valid.`)
-    }
-    fail(explain(caught))
+    const found = await auth.getUserByPhoneNumber(phone)
+    console.log(`Akun ditemukan: ${phone}`)
+    return found
+  } catch (error) {
+    if (error.code !== 'auth/user-not-found') fail(explain(error))
   }
-  console.log(`Akun dibuat: ${email}`)
+
+  try {
+    const created = await auth.createUser({ phoneNumber: phone, displayName: name })
+    console.log(`Akun dibuat: ${phone}`)
+    return created
+  } catch (error) {
+    if (error.code === 'auth/invalid-phone-number') {
+      fail(`Nomor "${phone}" tidak valid. Tulis seperti 085156657853.`)
+    }
+    fail(explain(error))
+  }
 }
 
-const name = values.name?.trim() || email.split('@')[0]
+/* ----------------------------------------------------------------- perintah */
+
+if (command === 'reset') {
+  if (!values.yes) {
+    fail(`Perintah ini menghapus data secara permanen. Ulangi dengan --yes kalau memang itu maksudnya.
+
+Yang akan dihapus:
+  koleksi lama di akar: staff, products, recipes, productions, sales, expenses${
+    values.all ? '\n  DAN SELURUH DATA BARU: tenants (beserta isinya) dan users' : ''
+  }`)
+  }
+
+  // Koleksi datar peninggalan model satu warung. Model sekarang menaruh semua
+  // data usaha di bawah tenants/{id}/…, jadi yang di akar tidak dibaca siapa pun
+  // lagi dan hanya membingungkan kalau ditinggalkan.
+  const legacy = ['staff', 'products', 'recipes', 'productions', 'sales', 'expenses']
+  const targets = values.all ? [...legacy, 'tenants', 'users'] : legacy
+
+  for (const name of targets) {
+    try {
+      const snapshot = await db.collection(name).count().get()
+      const total = snapshot.data().count
+      if (total === 0) {
+        console.log(`${name}: kosong`)
+        continue
+      }
+      // recursiveDelete ikut menyapu subkoleksi, yang penting untuk tenants:
+      // menghapus dokumen induk saja akan meninggalkan produk dan struk di
+      // bawahnya sebagai data yatim yang tidak bisa dibaca siapa pun.
+      await db.recursiveDelete(db.collection(name))
+      console.log(`${name}: ${total} dokumen dihapus`)
+    } catch (error) {
+      fail(explain(error))
+    }
+  }
+
+  console.log('\nSelesai.')
+  process.exit(0)
+}
+
+if (command === 'admin') {
+  const email = values.email?.trim().toLowerCase()
+  const phone = values.phone ? toE164(values.phone) : ''
+  if (!email && !phone) fail('Admin perlu --email atau --phone.')
+
+  const account = await findOrCreateAccount({
+    email,
+    phone,
+    password: values.password,
+    name: values.name,
+  })
+  const name = values.name?.trim() || email?.split('@')[0] || phone
+
+  try {
+    await db.collection('users').doc(account.uid).set(
+      {
+        name,
+        email: email ?? '',
+        phone,
+        role: 'admin',
+        // Admin platform tidak punya warung, dan memang tidak boleh punya: ia
+        // mengelola warung, bukan membaca pembukuannya.
+        tenantId: '',
+        active: true,
+        createdAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    )
+  } catch (error) {
+    fail(explain(error))
+  }
+
+  console.log(`\nAdmin platform: ${name}`)
+  console.log(`   uid ${account.uid}`)
+  console.log('\nSelesai. Masuk ke aplikasi, lalu tambahkan warung dari menu Warung.')
+  process.exit(0)
+}
+
+/* ------------------------------------------------------------------- warung */
+
+if (!values.tenant) fail('Perintah warung perlu --tenant "Nama Warung".')
+if (values.role !== 'pemilik' && values.role !== 'kasir') {
+  fail(`Peran "${values.role}" tidak dikenal. Isi pemilik atau kasir.`)
+}
+
+const tenantName = values.tenant.trim()
+let tenantId
 
 try {
-  await db.collection('staff').doc(user.uid).set(
-    {
-      name,
-      email,
-      role: values.role,
+  const existing = await db
+    .collection('tenants')
+    .where('name', '==', tenantName)
+    .limit(1)
+    .get()
+
+  if (existing.empty) {
+    const created = await db.collection('tenants').add({
+      name: tenantName,
+      ownerName: values.name?.trim() ?? '',
+      phone: values.phone ? toE164(values.phone) : '',
+      address: '',
       createdAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true },
-  )
+      updatedAt: FieldValue.serverTimestamp(),
+    })
+    tenantId = created.id
+    console.log(`Warung dibuat: ${tenantName}`)
+  } else {
+    tenantId = existing.docs[0].id
+    console.log(`Warung ditemukan: ${tenantName}`)
+  }
 } catch (error) {
   fail(explain(error))
 }
 
-console.log(`Terdaftar sebagai staf: ${name} (${values.role})`)
-console.log(`   uid ${user.uid}`)
+console.log(`   id ${tenantId}`)
+
+const email = values.email?.trim().toLowerCase()
+const phone = values.phone ? toE164(values.phone) : ''
+
+if (email || phone) {
+  const account = await findOrCreateAccount({
+    email,
+    phone,
+    password: values.password,
+    name: values.name,
+  })
+  const name = values.name?.trim() || email?.split('@')[0] || phone
+
+  try {
+    await db.collection('users').doc(account.uid).set(
+      {
+        name,
+        email: email ?? '',
+        phone,
+        role: values.role,
+        tenantId,
+        active: true,
+        createdAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    )
+  } catch (error) {
+    fail(explain(error))
+  }
+
+  console.log(`Pengguna: ${name} (${values.role})`)
+  console.log(`   uid ${account.uid}`)
+}
 
 /* ----------------------------------------------------------- produk contoh */
 
@@ -250,7 +422,7 @@ const SAMPLE_PRODUCTS = [
 ]
 
 if (values['with-products']) {
-  const products = db.collection('products')
+  const products = db.collection('tenants').doc(tenantId).collection('products')
   let created = 0
   let skipped = 0
 

@@ -1,5 +1,10 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import {
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  indexedDBLocalPersistence,
+  initializeAuth,
+} from 'firebase/auth'
 import {
   initializeFirestore,
   persistentLocalCache,
@@ -27,7 +32,27 @@ if (missing.length > 0) {
 }
 
 export const app = initializeApp(firebaseConfig)
-export const auth = getAuth(app)
+
+/**
+ * SESI SENGAJA DIBUAT AWET.
+ *
+ * Refresh token Firebase tidak punya masa berlaku: selama tidak logout, tidak
+ * ganti kredensial, dan akunnya tidak dinonaktifkan, orang ini tidak akan
+ * pernah diminta masuk lagi di perangkat yang sama. Itu memang yang dibutuhkan
+ * warung, karena masuk lewat OTP di setiap buka aplikasi terlalu merepotkan.
+ *
+ * Urutan persistensinya IndexedDB dulu baru localStorage. IndexedDB lebih
+ * tahan dibersihkan browser, dan localStorage jadi cadangan untuk browser yang
+ * memblokirnya.
+ *
+ * `browserPopupRedirectResolver` harus disebut sendiri di sini: initializeAuth
+ * tidak memasangnya otomatis seperti getAuth, dan tanpa itu login Google lewat
+ * popup gagal.
+ */
+export const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+  popupRedirectResolver: browserPopupRedirectResolver,
+})
 
 /**
  * Cache lokal persisten dinyalakan supaya kasir tetap bisa membuka daftar
@@ -41,4 +66,8 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 })
 
-export const STORE_NAME = import.meta.env.VITE_STORE_NAME || 'Warungku'
+/**
+ * Nama layanan, bukan nama warung. Nama warung datang dari dokumen tenant yang
+ * sedang dibuka, karena satu pemasangan aplikasi ini melayani banyak warung.
+ */
+export const APP_NAME = import.meta.env.VITE_STORE_NAME || 'Warungku'

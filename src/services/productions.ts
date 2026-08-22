@@ -1,5 +1,4 @@
 import {
-  collection,
   doc,
   increment,
   onSnapshot,
@@ -14,10 +13,13 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { productsRef } from './products'
+import { tenantCollection } from './paths'
 import { blendedCostPrice } from '@/lib/hpp'
 import type { Product, Production, ProductionItem } from '@/types'
 
-export const productionsRef = collection(db, 'productions')
+export function productionsRef(tenantId: string) {
+  return tenantCollection(tenantId, 'productions')
+}
 
 function toDate(value: unknown): Date {
   return value instanceof Timestamp ? value.toDate() : new Date()
@@ -79,9 +81,12 @@ export interface NewProductionInput {
  * penjualan: dapur bisa saja memproduksi saat internet mati, dan batch akan
  * terkirim sendiri begitu koneksi kembali.
  */
-export async function createProduction(input: NewProductionInput): Promise<Production> {
+export async function createProduction(
+  tenantId: string,
+  input: NewProductionInput,
+): Promise<Production> {
   const productionNo = generateProductionNo()
-  const productionDoc = doc(productionsRef)
+  const productionDoc = doc(productionsRef(tenantId))
   const batch = writeBatch(db)
 
   batch.set(productionDoc, {
@@ -102,7 +107,7 @@ export async function createProduction(input: NewProductionInput): Promise<Produ
 
   // Bahan berkurang sesuai pemakaian yang sudah dikonversi ke satuan stoknya.
   for (const item of input.items) {
-    batch.update(doc(productsRef, item.materialId), {
+    batch.update(doc(productsRef(tenantId), item.materialId), {
       stock: increment(-item.qtyInStockUnit),
       updatedAt: serverTimestamp(),
     })
@@ -110,7 +115,7 @@ export async function createProduction(input: NewProductionInput): Promise<Produ
 
   // Produk jadi bertambah, dan harga modalnya jadi rata rata tertimbang antara
   // sisa stok lama dan hasil produksi ini.
-  batch.update(doc(productsRef, input.product.id), {
+  batch.update(doc(productsRef(tenantId), input.product.id), {
     stock: increment(input.yieldQty),
     costPrice: blendedCostPrice(
       input.product.stock,
@@ -150,22 +155,23 @@ export async function createProduction(input: NewProductionInput): Promise<Produ
  * menolak seluruh batch, sehingga pembatalan gagal dengan sendirinya.
  */
 export async function voidProduction(
+  tenantId: string,
   production: Production,
   existingProductIds: Set<string>,
 ) {
   const batch = writeBatch(db)
-  batch.delete(doc(productionsRef, production.id))
+  batch.delete(doc(productionsRef(tenantId), production.id))
 
   for (const item of production.items) {
     if (!existingProductIds.has(item.materialId)) continue
-    batch.update(doc(productsRef, item.materialId), {
+    batch.update(doc(productsRef(tenantId), item.materialId), {
       stock: increment(item.qtyInStockUnit),
       updatedAt: serverTimestamp(),
     })
   }
 
   if (existingProductIds.has(production.productId)) {
-    batch.update(doc(productsRef, production.productId), {
+    batch.update(doc(productsRef(tenantId), production.productId), {
       stock: increment(-production.yieldQty),
       updatedAt: serverTimestamp(),
     })
@@ -175,6 +181,7 @@ export async function voidProduction(
 }
 
 export function subscribeProductions(
+  tenantId: string,
   from: Date,
   to: Date,
   onData: (productions: Production[]) => void,
@@ -182,7 +189,7 @@ export function subscribeProductions(
 ) {
   return onSnapshot(
     query(
-      productionsRef,
+      productionsRef(tenantId),
       where('createdAt', '>=', Timestamp.fromDate(from)),
       where('createdAt', '<=', Timestamp.fromDate(to)),
       orderBy('createdAt', 'desc'),

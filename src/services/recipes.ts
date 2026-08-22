@@ -1,6 +1,5 @@
 import {
   addDoc,
-  collection,
   deleteDoc,
   doc,
   onSnapshot,
@@ -12,10 +11,12 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { tenantCollection } from './paths'
 import type { Recipe, RecipeDraft, RecipeItem } from '@/types'
 
-export const recipesRef = collection(db, 'recipes')
+export function recipesRef(tenantId: string) {
+  return tenantCollection(tenantId, 'recipes')
+}
 
 function toDate(value: unknown): Date {
   return value instanceof Timestamp ? value.toDate() : new Date()
@@ -37,32 +38,33 @@ export function mapRecipe(snapshot: QueryDocumentSnapshot<DocumentData>): Recipe
 }
 
 export function subscribeRecipes(
+  tenantId: string,
   onData: (recipes: Recipe[]) => void,
   onError: (error: Error) => void,
 ) {
   return onSnapshot(
-    query(recipesRef, orderBy('productName')),
+    query(recipesRef(tenantId), orderBy('productName')),
     (snapshot) => onData(snapshot.docs.map(mapRecipe)),
     onError,
   )
 }
 
-export async function createRecipe(draft: RecipeDraft) {
-  await addDoc(recipesRef, {
+export async function createRecipe(tenantId: string, draft: RecipeDraft) {
+  await addDoc(recipesRef(tenantId), {
     ...draft,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
 }
 
-export async function updateRecipe(id: string, draft: RecipeDraft) {
-  await updateDoc(doc(recipesRef, id), { ...draft, updatedAt: serverTimestamp() })
+export async function updateRecipe(tenantId: string, id: string, draft: RecipeDraft) {
+  await updateDoc(doc(recipesRef(tenantId), id), { ...draft, updatedAt: serverTimestamp() })
 }
 
 /**
  * Menghapus resep tidak menyentuh riwayat produksi maupun stok. Produksi yang
  * sudah terjadi menyimpan salinan bahan dan harganya sendiri.
  */
-export async function deleteRecipe(id: string) {
-  await deleteDoc(doc(recipesRef, id))
+export async function deleteRecipe(tenantId: string, id: string) {
+  await deleteDoc(doc(recipesRef(tenantId), id))
 }

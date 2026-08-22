@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Button, Modal, SelectField, TextField, toast } from '@/components/ui'
 import { createProduct, updateProduct } from '@/services/products'
+import { useAuth } from '@/contexts/AuthContext'
 import { writeErrorMessage } from '@/lib/errors'
 import { formatPercent, formatRupiah } from '@/lib/format'
 import { UNIT_LIST } from '@/lib/units'
@@ -50,6 +51,7 @@ export function ProductFormModal({
   product,
   categories,
 }: ProductFormModalProps) {
+  const { tenantId } = useAuth()
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({})
   const [saving, setSaving] = useState(false)
@@ -115,10 +117,10 @@ export function ProductFormModal({
     try {
       if (product) {
         const { stock: _ignoredStock, ...withoutStock } = draft
-        await updateProduct(product.id, withoutStock)
+        await updateProduct(tenantId, product.id, withoutStock)
         toast.success(`${draft.name} diperbarui.`)
       } else {
-        await createProduct(draft)
+        await createProduct(tenantId, draft)
         toast.success(`${draft.name} ditambahkan.`)
       }
       onClose()

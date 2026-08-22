@@ -29,7 +29,7 @@ export function PaymentModal({
   productsById,
   onPaid,
 }: PaymentModalProps) {
-  const { user, staff } = useAuth()
+  const { user, appUser, tenantId } = useAuth()
   const { items, discount, note, setNote, clear } = useCart()
 
   const [method, setMethod] = useState<PaymentMethod>('tunai')
@@ -82,14 +82,14 @@ export function PaymentModal({
 
     setSubmitting(true)
     try {
-      const sale = await createSale({
+      const sale = await createSale(tenantId, {
         items,
         discount,
         paymentMethod: method,
         cashReceived: method === 'tunai' ? cashReceived : total,
         note,
         cashierId: user.uid,
-        cashierName: displayNameOf(user, staff),
+        cashierName: displayNameOf(user, appUser),
       })
       clear()
       onPaid(sale)

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Button, Modal, Segmented, TextField, toast } from '@/components/ui'
 import { addStock, setStock } from '@/services/products'
+import { useAuth } from '@/contexts/AuthContext'
 import { writeErrorMessage } from '@/lib/errors'
 import { formatNumber, formatRupiah } from '@/lib/format'
 import type { Product } from '@/types'
@@ -14,6 +15,7 @@ interface StockModalProps {
 }
 
 export function StockModal({ open, onClose, product }: StockModalProps) {
+  const { tenantId } = useAuth()
   const [mode, setMode] = useState<Mode>('tambah')
   const [quantity, setQuantity] = useState('')
   const [newCost, setNewCost] = useState('')
@@ -40,12 +42,12 @@ export function StockModal({ open, onClose, product }: StockModalProps) {
     try {
       if (mode === 'tambah') {
         const costChanged = cost > 0 && cost !== product.costPrice
-        await addStock(product.id, amount, costChanged ? cost : undefined)
+        await addStock(tenantId, product.id, amount, costChanged ? cost : undefined)
         toast.success(
           `${formatNumber(amount)} ${product.unit} ${product.name} masuk ke stok.`,
         )
       } else {
-        await setStock(product.id, amount)
+        await setStock(tenantId, product.id, amount)
         toast.success(`Stok ${product.name} dikoreksi jadi ${formatNumber(amount)}.`)
       }
       onClose()
