@@ -16,7 +16,7 @@ import {
   type User,
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import { requestOtp, type PhoneChallenge } from '@/lib/phoneAuth'
+import { requestOtp, type CaptchaSize, type PhoneChallenge } from '@/lib/phoneAuth'
 import { formatPhone } from '@/lib/phone'
 import { claimInvite, getAppUser } from '@/services/users'
 import { getTenant } from '@/services/tenants'
@@ -41,7 +41,11 @@ interface AuthContextValue {
   reloadProfile: () => void
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
-  requestPhoneCode: (phoneE164: string, container: HTMLElement) => Promise<PhoneChallenge>
+  requestPhoneCode: (
+    phoneE164: string,
+    container: HTMLElement,
+    size?: CaptchaSize,
+  ) => Promise<PhoneChallenge>
   confirmPhoneCode: (challenge: PhoneChallenge, code: string) => Promise<void>
   signOutUser: () => Promise<void>
 }
@@ -184,9 +188,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         provider.setCustomParameters({ prompt: 'select_account' })
         await signInWithPopup(auth, provider)
       },
-      requestPhoneCode: async (phoneE164, container) => {
+      requestPhoneCode: async (phoneE164, container, size) => {
         setAccessError('')
-        return requestOtp(auth, phoneE164, container)
+        return requestOtp(auth, phoneE164, container, size)
       },
       confirmPhoneCode: async (challenge, code) => {
         try {
@@ -282,6 +286,8 @@ export function authErrorMessage(error: unknown) {
       return 'Kode OTP salah. Periksa lagi angkanya.'
     case 'auth/code-expired':
       return 'Kode OTP sudah kedaluwarsa. Minta kode baru.'
+    case 'auth/otp-timeout':
+      return 'Pemeriksaan keamanan belum selesai, jadi kodenya tidak jadi dikirim. Centang kotak "Saya bukan robot" lalu coba lagi.'
     case 'auth/quota-exceeded':
       return 'Kuota SMS harian proyek ini sudah habis. Coba lagi besok, atau masuk dengan email.'
     case 'auth/captcha-check-failed':

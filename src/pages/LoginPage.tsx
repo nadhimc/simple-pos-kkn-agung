@@ -252,6 +252,14 @@ export default function LoginPage() {
                   helper="Boleh ditulis 0851… atau +62851…, keduanya sama. Kode masuk dikirim lewat SMS."
                   onChange={(event) => setPhone(event.target.value)}
                 />
+
+                {/*
+                  Wadah reCAPTCHA. Harus sudah ada di DOM sebelum permintaan
+                  dikirim. Ditaruh tepat di atas tombol supaya kotak centangnya
+                  berada di jalur mata yang sama dengan tombol yang baru ditekan.
+                */}
+                <div ref={recaptchaRef} className="flex justify-center" />
+
                 <Button
                   type="submit"
                   size="lg"
@@ -261,6 +269,12 @@ export default function LoginPage() {
                 >
                   Kirim kode
                 </Button>
+
+                {phonePending ? (
+                  <p className="text-center text-xs text-ink-muted">
+                    Centang kotak di atas untuk melanjutkan.
+                  </p>
+                ) : null}
               </form>
             )
           ) : (
@@ -343,12 +357,6 @@ export default function LoginPage() {
             membuka aplikasinya di HP. Hilang sendiri kalau sudah terpasang.
           */}
           <InstallAppButton className="mt-6" size="lg" fullWidth />
-
-          {/*
-            reCAPTCHA tak terlihat. Wadahnya harus ada di DOM sebelum permintaan
-            OTP dikirim, jadi tetap dirender walaupun tidak menampilkan apa apa.
-          */}
-          <div ref={recaptchaRef} />
 
           <p className="mt-8 flex items-start gap-2 text-xs text-ink-subtle">
             <StorefrontIcon size={14} weight="bold" className="mt-0.5 shrink-0" />

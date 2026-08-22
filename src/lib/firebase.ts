@@ -54,6 +54,17 @@ export const auth = initializeAuth(app, {
   popupRedirectResolver: browserPopupRedirectResolver,
 })
 
+/*
+  Bahasa untuk apa pun yang digambar Firebase sendiri, bukan oleh aplikasi ini:
+  kotak reCAPTCHA dan isi SMS verifikasi. Tanpa ini keduanya berbahasa Inggris
+  di tengah layar yang seluruhnya berbahasa Indonesia.
+
+  Sengaja dikunci ke 'id', bukan mengikuti bahasa perangkat: seluruh teks
+  aplikasi ini memang hanya ada dalam bahasa Indonesia, jadi mengikuti perangkat
+  cuma menghasilkan campuran dua bahasa pada satu layar.
+*/
+auth.languageCode = 'id'
+
 /**
  * Cache lokal persisten dinyalakan supaya kasir tetap bisa membuka daftar
  * produk dan mencatat transaksi ketika koneksi warung terputus sesaat. Tulisan
