@@ -8,9 +8,17 @@ keduanya bertentangan, `docs/` yang harus diperbarui mengikuti kode.
 
 ## Apa ini
 
-Layanan POS sederhana untuk UMKM: kasir, stok, beban operasional, dan laporan
-laba rugi. Satu pemasangan melayani banyak warung, tapi tiap warung tetap
-dipakai satu sampai dua orang di satu gerai, bukan multi cabang.
+**IPANDAI Jugosari**, Sistem Informasi Pengelolaan Dana Desa Jugosari. Kasir,
+stok, beban operasional, dan laporan laba rugi untuk unit usaha desa. Satu
+pemasangan melayani banyak unit usaha, tapi tiap unit tetap dipakai satu sampai
+dua orang di satu gerai, bukan multi cabang.
+
+Nama layanan adalah konstanta di `src/lib/firebase.ts`, bukan environment
+variable: itu identitas produk, bukan konfigurasi per deployment. Nama tiap unit
+usaha datang dari dokumen tenant-nya.
+
+Di antarmuka admin istilahnya **unit usaha**; di dalam aplikasinya sendiri
+pengguna hanya melihat nama tempatnya, jadi istilah generiknya jarang muncul.
 
 Ada dua dunia yang memakai kerangka yang sama tapi tidak pernah saling melihat:
 
@@ -135,11 +143,19 @@ permintaan, dan `AuthContext` membaca hal yang sama untuk pengalaman pengguna.
 
 **Tidak ada pendaftaran mandiri.** Seluruh pengguna didaftarkan admin platform
 lewat halaman Pengguna. Aturan `users` hanya bisa ditulis akun ber-`role: admin`,
-dan validatornya menolak peran `admin` itu sendiri, sehingga tidak ada jalan bagi
-siapa pun, termasuk admin yang sudah ada, mengangkat admin baru dari dalam
-aplikasi.
+jadi orang yang belum terdaftar tidak punya pijakan sama sekali.
 
-**Admin pertama hanya lahir dari `scripts/seed.mjs`** yang memakai Admin SDK.
+**Admin boleh mengangkat admin lain lewat aplikasi**, tapi hanya admin.
+`isValidUser()` memeriksa bentuk barisnya sekaligus: orang unit usaha wajib punya
+`tenantId`, admin wajib tidak punya. Dan `keepsOwnStanding()` melarang siapa pun
+menurunkan peran atau menonaktifkan dirinya sendiri, supaya platform tidak bisa
+kehilangan admin terakhirnya tanpa cara memulihkan.
+
+Konsekuensi yang diterima: satu akun admin yang bocor bisa membuat admin lain,
+jadi mengusirnya butuh mencabut semua yang dibuatnya. Sebelum ini, admin hanya
+bisa lahir dari skrip. Ditukar dengan kemudahan yang memang diminta.
+
+**Admin pertama tetap hanya lahir dari `scripts/seed.mjs`** yang memakai Admin SDK.
 Admin SDK melewati Security Rules by design, jadi kunci service account-nya
 setara akses penuh ke seluruh proyek. Kunci itu masuk `.gitignore` dan tidak
 boleh dipakai di kode aplikasi, hanya di skrip yang dijalankan manual.
@@ -250,6 +266,7 @@ Dua koleksi di akar, dan lima subkoleksi di bawah tiap warung.
 ```
 users/{uid}
 tenants/{tenantId}
+tenantStats/{tenantId}
 tenants/{tenantId}/products/{id}
 tenants/{tenantId}/recipes/{id}
 tenants/{tenantId}/productions/{id}
@@ -269,8 +286,14 @@ phone, role` (`admin`, `pemilik`, atau `kasir`), `tenantId`, `active`,
 `createdAt`. `tenantId` kosong hanya untuk admin platform. Ditulis admin lewat
 aplikasi, kecuali baris admin pertama yang datang dari skrip seed.
 
-**`tenants`** — `name, ownerName, phone, address, createdAt, updatedAt`. Hanya
-identitas warung, tanpa angka usaha.
+**`tenants`** — `name, ownerName, phone, address, active, createdAt, updatedAt`.
+Hanya identitas unit usaha, tanpa angka usaha. `active: false` menutup seluruh
+akses ke datanya tanpa menghapus apa pun.
+
+**`tenantStats`** — `salesCount, revenue, grossProfit, expenseTotal,
+productionCount, lastSaleAt, months{}`. Ditulis unit usahanya sendiri dengan
+`increment`, dibaca admin. Ada karena admin sengaja tidak bisa membaca subkoleksi
+unit usaha mana pun, jadi ia tidak bisa menjumlahkan struk sendiri.
 
 **`products`** — `type, name, sku, category, costPrice, sellPrice, stock, unit,
 minStock, createdAt, updatedAt`
@@ -308,6 +331,23 @@ Laba bersih  = Laba kotor - Beban operasional
 
 Rumusnya ada satu tempat saja: `src/lib/profit.ts`. Jangan menghitung ulang di
 komponen.
+
+**Ringkasan admin selalu ikut batch transaksinya.** `addStatsToBatch` di
+`src/services/stats.ts` menambahkan `increment` ke batch yang sudah ada, tidak
+pernah menulis terpisah. Beban yang tercatat tapi tidak terhitung di ringkasan
+lebih buruk daripada keduanya gagal. Itu juga sebabnya `expenses` memakai
+`writeBatch` walaupun cuma menyentuh satu dokumen.
+
+Angka ringkasan itu persis sepercaya data yang mendasarinya, tidak lebih. Unit
+usaha memang sudah memegang penuh catatan penjualannya sendiri, jadi ini tidak
+menuntut kepercayaan baru. Jangan memakainya untuk audit.
+
+**Unit usaha dinonaktifkan, tidak pernah dihapus.** Firestore tidak menghapus
+subkoleksi secara berjenjang, jadi menghapus dokumen tenant hanya meninggalkan
+produk dan struknya sebagai data yatim yang tidak bisa dibaca siapa pun. Aturan
+memeriksanya lewat `tenantActive()`, dan pemeriksaan itu sengaja **tidak** ikut
+pada pembacaan dokumen tenant sendiri, supaya aplikasi bisa menjelaskan kenapa
+tidak bisa dibuka alih alih gagal tanpa sebab.
 
 **Pembelian stok bukan beban.** Modal barang diakui sebagai HPP saat barang
 terjual. Kalau pembelian stok juga dicatat sebagai beban, modalnya terhitung dua

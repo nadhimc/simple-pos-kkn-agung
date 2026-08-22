@@ -15,8 +15,9 @@ flowchart TB
   GATE -->|"admin"| ADMIN["Area platform<br/>/admin"]
   GATE -->|"pemilik atau kasir"| WARUNG["Area warung<br/>/kasir, /produk, /laporan"]
 
-  ADMIN --> A1["Daftar warung"]
-  ADMIN --> A2["Daftar pengguna"]
+  ADMIN --> A1["Daftar unit usaha"]
+  ADMIN --> A2["Ringkasan usaha"]
+  ADMIN --> A3["Daftar pengguna"]
 
   WARUNG --> W1["Kasir dan struk"]
   WARUNG --> W2["Stok dan resep"]
@@ -77,6 +78,7 @@ membentuk `tenants//products`.
 ```
 users/{uid}
 tenants/{tenantId}
+tenantStats/{tenantId}
 tenants/{tenantId}/products/{id}
 tenants/{tenantId}/recipes/{id}
 tenants/{tenantId}/productions/{id}
@@ -123,20 +125,38 @@ flowchart TD
   SEED["scripts/seed.mjs<br/>Admin SDK, melewati Rules"] --> ADMIN["users/{uid}<br/>role: admin"]
   ADMIN --> TENANT["tenants/{id}"]
   ADMIN --> USER["users/{uid}<br/>role: pemilik atau kasir"]
-  USER --> DATA["Seluruh data warungnya"]
+  ADMIN --> ADMIN2["users/{uid}<br/>role: admin"]
+  USER --> DATA["Seluruh data unit usahanya"]
 
   SELF["Pendaftaran mandiri"] -.->|"tidak ada"| USER
-  ADMIN -.->|"ditolak isValidUser()"| ADMIN2["Admin baru"]
+  ADMIN -.->|"ditolak keepsOwnStanding()"| DEMOTE["Menurunkan dirinya sendiri"]
 
   classDef no fill:#b91c1c,stroke:#b91c1c,color:#ffffff
-  class SELF,ADMIN2 no
+  class SELF,DEMOTE no
 ```
 
-Rantainya punya satu awal yang berada di luar aplikasi, dan itu disengaja.
-Validator `isValidUser()` di `firestore.rules` hanya menerima peran `pemilik`
-dan `kasir`, sehingga tidak ada jalan bagi siapa pun, termasuk admin yang sudah
-ada, mengangkat admin baru dari dalam aplikasi. Admin baru hanya lahir dari
-skrip yang memakai kunci service account.
+Rantainya punya satu awal yang berada di luar aplikasi, dan itu disengaja: admin
+pertama hanya lahir dari skrip yang memakai kunci service account. Sesudahnya
+admin boleh mengangkat admin lain dari dalam aplikasi.
+
+`isValidUser()` memeriksa peran dan bentuk barisnya bersama sama, supaya tidak
+ada baris setengah jadi:
+
+| Peran | `tenantId` |
+| --- | --- |
+| `pemilik`, `kasir` | wajib terisi |
+| `admin` | wajib kosong |
+
+`keepsOwnStanding()` melarang siapa pun menurunkan peran atau menonaktifkan
+**dirinya sendiri**. Tanpa itu satu salah klik bisa menghapus admin terakhir
+platform, dan tidak ada cara memulihkannya dari dalam aplikasi. Nama sendiri
+tetap boleh diubah.
+
+**Yang ditukar.** Sebelumnya `isValidUser()` menolak peran `admin` sepenuhnya,
+sehingga satu akun admin yang bocor pun tidak bisa mencetak admin baru. Sekarang
+bisa, jadi mengusir admin yang bocor berarti mencabut juga semua yang dibuatnya.
+Yang **tidak** berubah: orang yang belum terdaftar tetap tidak punya pijakan
+apa pun, karena seluruh tulisan ke `users` menuntut `isAdmin()` lebih dulu.
 
 ## Mendaftarkan pengguna tanpa kehilangan sesi sendiri
 
@@ -218,6 +238,75 @@ hanya bisa jadi gembok layar di atas sesi yang sudah hidup, bukan faktor
 autentikasi kedua. Kalau nanti ditambahkan, sadari batas itu sejak awal dan
 jangan menjualnya sebagai keamanan.
 
+## Menonaktifkan unit usaha
+
+Unit usaha tidak bisa dihapus dari aplikasi, dan itu disengaja.
+
+```mermaid
+flowchart TD
+  A["Hapus tenants/{id}"] --> B["Subkoleksi di bawahnya TIDAK ikut terhapus"]
+  B --> C["Produk, resep, struk, beban<br/>jadi data yatim"]
+  C --> D["Tidak bisa dibaca siapa pun,<br/>tidak bisa dibersihkan dari aplikasi"]
+
+  E["active: false"] --> F["tenantActive() bernilai salah"]
+  F --> G["Seluruh subkoleksinya tertutup<br/>di sisi server"]
+  G --> H["Datanya utuh,<br/>bisa dibuka lagi kapan saja"]
+
+  classDef no fill:#b91c1c,stroke:#b91c1c,color:#ffffff
+  classDef ok fill:#047857,stroke:#047857,color:#ffffff
+  class D no
+  class H ok
+```
+
+Firestore tidak mengenal penghapusan berjenjang, dan klien tidak punya cara
+murah untuk menyapu subkoleksi. Menonaktifkan menutup aksesnya tanpa menyentuh
+satu dokumen pun di dalamnya.
+
+**Membaca dokumen unit usahanya sendiri sengaja tidak ikut diperiksa status
+aktifnya.** Kalau ikut, orang dari unit usaha yang baru dinonaktifkan akan
+mendapat `permission-denied`, dan aplikasi membacanya sebagai gangguan jaringan,
+bukan sebagai "unit usaha ini sedang ditutup". Yang dijaga status aktif adalah
+datanya, di subkoleksi bawah.
+
+## Ringkasan usaha untuk admin
+
+Admin tidak boleh membaca struk unit usaha mana pun, tapi tetap perlu tahu unit
+mana yang jalan dan berapa hasilnya. Jembatannya adalah `tenantStats/{tenantId}`.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant K as Kasir unit usaha
+  participant S as services/sales
+  participant B as writeBatch
+  participant FS as Firestore
+  participant AD as Admin
+
+  K->>S: createSale(...)
+  S->>B: set sales/{id}
+  S->>B: increment stok tiap produk
+  S->>B: increment tenantStats/{id}
+  B->>FS: commit, satu tulisan
+  Note over B,FS: gagal atau berhasil bersama sama
+
+  AD->>FS: baca tenantStats
+  FS-->>AD: total per bulan dan sepanjang waktu
+  AD-->>AD: tidak pernah menyentuh sales
+```
+
+Ditulis dengan `increment`, sehingga dua perangkat yang menjual bersamaan tetap
+menghasilkan total yang benar, dan ikut mengantre di cache lokal saat unit usaha
+sedang offline, sama seperti transaksinya.
+
+Bulan diambil dari **tanggal transaksinya**, bukan hari ini. Struk bulan lalu
+yang dibatalkan hari ini mengurangi bulan lalu, dan beban yang tanggalnya
+dipindahkan dari Juli ke Agustus mengurangi Juli sekaligus menambah Agustus.
+
+**Batas ketelitiannya disebutkan langsung di halamannya.** Angka itu persis
+sepercaya catatan yang mendasarinya, tidak lebih: unit usaha sudah memegang penuh
+catatan penjualannya sendiri, jadi ringkasan ini tidak menuntut kepercayaan baru.
+Ia bukan alat audit, dan tidak boleh dijual sebagai itu.
+
 ## Mencabut akses
 
 ```mermaid
@@ -243,12 +332,12 @@ salinan nama kasirnya sendiri.
 
 | Belum ada | Konsekuensi |
 | --- | --- |
-| Satu akun untuk beberapa warung | Orang yang mengelola dua warung butuh dua akun |
-| Admin membuat admin lain | Admin baru hanya lewat `scripts/seed.mjs` |
-| Menghapus warung dari aplikasi | Firestore tidak menghapus subkoleksi berjenjang; pakai skrip |
+| Satu akun untuk beberapa unit usaha | Orang yang mengelola dua unit butuh dua akun |
+| Menghapus unit usaha dari aplikasi | Diganti penonaktifan; penghapusan sungguhan butuh skrip |
 | Hak akses berbeda antara pemilik dan kasir | Peran disimpan dan ditampilkan, tapi belum membatasi apa pun |
-| Admin melihat ringkasan usaha tiap warung | Butuh dokumen ringkasan terpisah, karena admin sengaja tidak boleh membaca subkoleksinya |
+| Rincian transaksi untuk admin | Sengaja tidak ada. Yang tersedia hanya total lewat `tenantStats` |
+| Membangun ulang `tenantStats` dari struk | Ringkasan yang terlanjur melenceng hanya bisa dikoreksi lewat skrip Admin SDK |
 
-Empat yang pertama tinggal ditambahkan kalau dibutuhkan. Yang terakhir sengaja
-tidak dilakukan dengan cara memberi admin akses baca: satu akun admin yang bocor
-tidak boleh berarti seluruh pembukuan semua warung ikut terbuka.
+Baris keempat sengaja dibiarkan: memberi admin akses baca ke subkoleksi akan
+membatalkan jaminan bahwa satu akun admin yang bocor tidak membuka pembukuan
+semua unit usaha. Sisanya tinggal ditambahkan kalau dibutuhkan.

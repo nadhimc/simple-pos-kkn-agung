@@ -54,7 +54,10 @@ dan hanya dipakai `scripts/seed.mjs` yang dijalankan manual.
 | Penyerang memanggil Firestore REST langsung, melewati aplikasi | Sedang | Security Rules, tidak bergantung pada klien | Tidak ada |
 | Kasir mengubah laba transaksi lama | Sedang | `allow update: if false` pada `sales` | Bisa menghapus lalu input ulang, dan itu tercatat sebagai hilangnya struk |
 | Orang warung mendaftarkan dirinya atau orang lain | Rendah | `users` hanya bisa ditulis `isAdmin()` | Tidak ada dari aplikasi |
-| Siapa pun mengangkat dirinya jadi admin platform | Rendah | `isValidUser()` menolak peran `admin` | Tidak ada, admin hanya lahir dari skrip seed |
+| Siapa pun mengangkat dirinya jadi admin platform | Rendah | Seluruh tulisan ke `users` menuntut `isAdmin()` | Tidak ada bagi yang belum terdaftar |
+| Admin yang bocor mencetak admin lain | Rendah | Tidak ditahan | **Ada.** Mengusirnya berarti mencabut juga semua yang dibuatnya |
+| Admin salah klik menghapus aksesnya sendiri | Rendah | `keepsOwnStanding()` dan larangan hapus diri sendiri | Tidak ada |
+| Unit usaha memalsukan angka ringkasannya | Rendah | Tidak ditahan, dan disengaja | Ringkasan sepercaya catatan yang mendasarinya, tidak lebih |
 | Oversell stok dari dua perangkat | Rendah | Rules menolak stok negatif | Batch ditolak, transaksi gagal dan harus diulang |
 | `serviceAccountKey.json` ter-commit | Rendah | Tiga pola `.gitignore` | Total kalau sampai lolos, harus dicabut di Console |
 | Penulisan offline oleh akun yang aksesnya dicabut | Rendah | Rules memeriksa saat sinkron | Data di-rollback diam diam, kasir tidak diberi tahu |
@@ -107,10 +110,24 @@ function isAdmin() {
   return isActive() && me().role == 'admin';
 }
 
-function isMemberOf(tenantId) {
+function belongsTo(tenantId) {
   return isActive() && me().tenantId == tenantId;
 }
+
+function tenantActive(tenantId) {
+  return get(/databases/$(database)/documents/tenants/$(tenantId)).data.active != false;
+}
+
+function isMemberOf(tenantId) {
+  return belongsTo(tenantId) && tenantActive(tenantId);
+}
 ```
+
+`belongsTo()` dan `isMemberOf()` sengaja dipisah. Membaca dokumen unit usahanya
+sendiri cukup `belongsTo()`, tanpa memeriksa status aktif, supaya orang dari unit
+yang baru dinonaktifkan mendapat penjelasan alih alih `permission-denied` yang
+dibaca aplikasi sebagai gangguan jaringan. Yang dijaga status aktif adalah
+datanya, bukan identitasnya.
 
 `me()` adalah `get()` ke `users/{request.auth.uid}`, dibaca **di server**. Itu
 sebabnya `tenantId` tidak bisa dipalsukan: browser tidak pernah menyebutkannya,
@@ -158,15 +175,23 @@ sendiri, dan "admin" berarti `isAdmin()`.
 
 | Jalur | read | create | update | delete |
 | --- | --- | --- | --- | --- |
-| `users/{uid}` | uid itu sendiri, atau admin | admin + validasi | admin + validasi | admin, kecuali barisnya sendiri |
-| `tenants/{id}` | warga, atau admin | admin | admin | admin |
+| `users/{uid}` | uid itu sendiri, atau admin | admin + validasi | admin + validasi + tidak mengubah kedudukan sendiri | admin, kecuali barisnya sendiri |
+| `tenants/{id}` | warga (tanpa cek aktif), atau admin | admin | admin | admin |
+| `tenantStats/{id}` | warga, atau admin | warga | warga | warga |
 | `tenants/{id}/products` | warga | warga + validasi | warga + validasi | warga |
 | `tenants/{id}/recipes` | warga | warga + validasi | warga + validasi | warga |
 | `tenants/{id}/productions` | warga | warga + validasi + `operatorId == uid` | **tidak pernah** | warga |
 | `tenants/{id}/sales` | warga | warga + validasi + `cashierId == uid` | **tidak pernah** | warga |
 | `tenants/{id}/expenses` | warga | warga + validasi | warga + validasi | warga |
 
-**Perhatikan bahwa `admin` tidak muncul sama sekali di lima baris terakhir.**
+`tenantStats` adalah satu satunya tempat admin bisa melihat angka usaha, dan ia
+hanya membaca. Isinya tidak divalidasi bentuknya, dan itu keputusan sadar: unit
+usaha sudah memegang penuh catatan penjualannya sendiri, jadi membiarkannya
+menulis ringkasannya sendiri tidak menambah kepercayaan baru yang harus
+diberikan. Yang dijaga adalah tidak ada unit usaha yang bisa menulis ringkasan
+milik unit usaha lain.
+
+**Perhatikan bahwa `admin` tidak muncul sama sekali di lima baris subkoleksi.**
 Ketiadaan itulah jaminannya: satu akun admin yang bocor tidak berarti seluruh
 pembukuan semua warung ikut terbuka. Jangan menambahkannya tanpa alasan baru yang
 kuat.
@@ -234,6 +259,7 @@ flowchart TD
   B --> C4["tenants/B/products/x, uid warga A<br/>harus Denied"]
   B --> C5["tenants/A/products/x, uid admin<br/>harus Denied"]
   B --> C6["users/uid_lain, uid warga A<br/>harus Denied"]
+  B --> C7["tenants/A/products/x, warga A,<br/>saat A nonaktif, harus Denied"]
 
   C2 --> D{"Hasilnya Allowed?"}
   D -->|"ya"| E["Aturan BELUM terpasang.<br/>Ulangi Publish."]

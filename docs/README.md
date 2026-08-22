@@ -1,4 +1,4 @@
-# Dokumentasi Teknis Warungku POS
+# Dokumentasi Teknis IPANDAI Jugosari
 
 Dokumentasi rancangan dan cara kerja layanan kasir untuk UMKM ini. Ditujukan
 untuk pengembang yang akan meneruskan, mengaudit, atau memperbaiki proyeknya.
@@ -39,7 +39,7 @@ flowchart LR
 
   subgraph firebase["Firebase"]
     AUTH["Authentication<br/>Nomor HP + Email + Google"]
-    FS[("Cloud Firestore<br/>users, tenants,<br/>tenants/{id}/produk, resep,<br/>produksi, penjualan, beban")]
+    FS[("Cloud Firestore<br/>users, tenants, tenantStats,<br/>tenants/{id}/produk, resep,<br/>produksi, penjualan, beban")]
     RULES["Security Rules"]
   end
 

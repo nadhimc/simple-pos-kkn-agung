@@ -1,4 +1,6 @@
-# Warungku POS
+# IPANDAI Jugosari
+
+Sistem Informasi Pengelolaan Dana Desa Jugosari.
 
 Layanan kasir dan pembukuan sederhana untuk UMKM produsen. Kasir, stok bahan
 baku dan barang jadi, perhitungan HPP produk olahan, beban operasional, dan
@@ -100,8 +102,9 @@ dari jalur dokumen, bukan sekadar field, sehingga tidak ada kueri yang bisa lupa
 memfilter warung dan membaca data tetangga.
 
 ```
-users/{uid}                                siapa boleh masuk, ke warung mana
-tenants/{tenantId}                         identitas warung
+users/{uid}                                siapa boleh masuk, ke unit usaha mana
+tenants/{tenantId}                         identitas unit usaha
+tenantStats/{tenantId}                     ringkasan angka, untuk admin
 tenants/{tenantId}/products/{id}
 tenants/{tenantId}/recipes/{id}
 tenants/{tenantId}/productions/{id}
@@ -115,7 +118,8 @@ ada yang perlu dibuat manual selain admin pertama.
 | Koleksi | Dibuat oleh | Kapan |
 | --- | --- | --- |
 | `users` | skrip seed, lalu halaman Pengguna | wajib, sebelum bisa masuk |
-| `tenants` | halaman Warung atau skrip seed | saat warung pertama ditambahkan |
+| `tenants` | halaman Unit Usaha atau skrip seed | saat unit usaha pertama ditambahkan |
+| `tenantStats` | tiap unit usaha sendiri | saat transaksi pertama disimpan |
 | `products` | halaman Produk & Stok | saat produk pertama ditambahkan |
 | `recipes` | halaman Resep & HPP | saat resep pertama disimpan |
 | `productions` | halaman Resep & HPP | saat produksi pertama dicatat |
@@ -153,9 +157,14 @@ tiga cara, dan ketiganya membuat akunnya tanpa mengganggu sesi Anda.
 
 | Cara | Kapan dipakai |
 | --- | --- |
-| **Nomor HP** | Paling mudah untuk pemilik warung. Anda mengetik nomornya, kode enam angka masuk ke HP-nya, dia membacakannya ke Anda. |
+| **Nomor HP** | Paling mudah untuk pemilik unit usaha. Anda mengetik nomornya, kode enam angka masuk ke HP-nya, dia membacakannya ke Anda. |
 | **Email** | Akun dan kata sandinya Anda buat di sini, lalu diberikan ke orangnya. |
 | **UID** | Untuk akun yang sudah pernah masuk, misalnya lewat Google. UID-nya ditampilkan halaman masuk saat menolaknya. |
+
+Pilih peran **Admin platform** untuk membuat admin baru. Admin tidak terikat unit
+usaha mana pun, jadi pemilih unit usahanya hilang sendiri. Yang tidak bisa
+dilakukan siapa pun, termasuk admin: menurunkan peran atau menonaktifkan
+**dirinya sendiri**, supaya sistem tidak bisa kehilangan admin terakhirnya.
 
 Nomor HP tidak bisa didaftarkan sepihak, dengan atau tanpa backend: OTP-nya
 dikirim ke HP pemilik nomornya. Karena itu alurnya memang dirancang berdua.
@@ -167,6 +176,36 @@ menyimpan nama kasirnya sendiri.
 
 Akun loginnya sendiri tetap ada di Firebase Authentication, tetapi tanpa baris di
 `users` ia tidak bisa membaca data apa pun.
+
+## Ringkasan usaha
+
+Menu **Ringkasan Usaha** menampilkan omzet, HPP, laba kotor, beban, dan laba
+bersih tiap unit usaha, per bulan atau sepanjang waktu, lengkap dengan kapan
+terakhir kali unit itu menjual sesuatu.
+
+Angkanya **bukan** hasil membaca pembukuan mereka. Admin sengaja tidak diberi
+akses ke struk maupun catatan beban unit usaha mana pun, dan itu dijaga
+Firestore Security Rules, bukan sekadar disembunyikan di tampilan. Yang terjadi:
+tiap unit usaha menambahkan totalnya sendiri setiap kali menyimpan transaksi,
+dalam satu tulisan yang gagal atau berhasil bersama transaksinya.
+
+Artinya angka itu persis sepercaya catatan yang mendasarinya, tidak lebih dan
+tidak kurang. Untuk memeriksa rinciannya, minta pemilik unit usaha membuka
+halaman Laba Rugi miliknya.
+
+## Menonaktifkan unit usaha
+
+Unit usaha tidak bisa dihapus, dan itu disengaja. Firestore tidak menghapus
+subkoleksi secara berjenjang, jadi menghapus unit usaha hanya akan meninggalkan
+produk, resep, dan struknya sebagai data yatim yang tidak bisa dibaca siapa pun.
+
+Yang tersedia adalah **menonaktifkan**, lewat tombol larangan di baris unit usaha
+itu. Efeknya:
+
+- Tidak ada seorang pun yang bisa membuka datanya, dijaga di sisi server.
+- Orang yang mencoba masuk mendapat penjelasan bahwa unit usahanya sedang
+  dinonaktifkan, bukan layar gagal tanpa sebab.
+- Seluruh data tetap utuh, dan mengaktifkan kembali mengembalikan semuanya.
 
 ## Sesi dan PIN
 
@@ -181,11 +220,13 @@ yang sudah hidup, bukan faktor autentikasi kedua.
 ## Deploy ke Vercel
 
 Import repositori ini di Vercel, lalu isi Environment Variables `VITE_FIREBASE_*`
-dan `VITE_STORE_NAME` sesuai `.env.example`. Sisanya sudah diatur `vercel.json`.
+sesuai `.env.example`. Sisanya sudah diatur `vercel.json`.
 
-`VITE_STORE_NAME` sekarang adalah nama **layanan**, yang muncul di halaman masuk
-dan layar tunggu. Nama warung yang tercetak di struk dan tampil di sidebar datang
-dari dokumen tenant, bukan dari sini.
+Nama layanan tidak lagi berupa environment variable: ia konstanta di
+`src/lib/firebase.ts`, karena itu identitas produk dan bukan konfigurasi per
+deployment. Nama unit usaha yang tercetak di struk dan tampil di sidebar datang
+dari dokumen tenant-nya. Kalau `VITE_STORE_NAME` masih terpasang di Vercel dari
+versi sebelumnya, nilainya sudah tidak dibaca dan boleh dihapus.
 
 Tambahkan domain Vercel ke **Firebase Console → Authentication → Settings →
 Authorized domains**, kalau tidak, login akan ditolak dari domain produksi.

@@ -6,8 +6,9 @@ Dua koleksi di akar, dan lima subkoleksi di bawah tiap warung. Definisi tipenya
 ada di [`src/types/index.ts`](../src/types/index.ts).
 
 ```
-users/{uid}                          siapa boleh masuk, ke warung mana
-tenants/{tenantId}                   identitas warung
+users/{uid}                          siapa boleh masuk, ke unit usaha mana
+tenants/{tenantId}                   identitas unit usaha
+tenantStats/{tenantId}               ringkasan angka, dibaca admin
 tenants/{tenantId}/products/{id}
 tenants/{tenantId}/recipes/{id}
 tenants/{tenantId}/productions/{id}
@@ -27,6 +28,7 @@ Dua subkoleksi, `recipes` dan `productions`, dibahas terpisah di
 
 ```mermaid
 erDiagram
+  TENANTS ||--|| TENANT_STATS : "diringkas oleh"
   TENANTS ||--o{ USERS : "dibuka oleh"
   TENANTS ||--o{ PRODUCTS : "memiliki"
   TENANTS ||--o{ SALES : "memiliki"
@@ -48,8 +50,20 @@ erDiagram
     string ownerName
     string phone "E.164, catatan admin saja"
     string address
+    boolean active "false menutup seluruh datanya"
     timestamp createdAt
     timestamp updatedAt
+  }
+
+  TENANT_STATS {
+    string tenantId PK "sama dengan id tenant"
+    number salesCount
+    number revenue
+    number grossProfit
+    number expenseTotal
+    number productionCount
+    timestamp lastSaleAt "null kalau belum pernah menjual"
+    map months "kunci YYYY-MM, waktu lokal"
   }
 
   USERS {
