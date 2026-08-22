@@ -38,8 +38,8 @@ flowchart LR
   end
 
   subgraph firebase["Firebase"]
-    AUTH["Authentication<br/>Nomor HP + Email + Google"]
-    FS[("Cloud Firestore<br/>users, invites, tenants, tenantStats,<br/>tenants/{id}/produk, resep,<br/>produksi, penjualan, beban")]
+    AUTH["Authentication<br/>Email + Google"]
+    FS[("Cloud Firestore<br/>users, tenants, tenantStats,<br/>tenants/{id}/produk, resep,<br/>produksi, penjualan, beban")]
     RULES["Security Rules"]
   end
 

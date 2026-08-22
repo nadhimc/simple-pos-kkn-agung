@@ -10,83 +10,22 @@ Dua hal yang sering dianggap satu, padahal berbeda dan ditangani terpisah:
 | Otorisasi | Boleh apa orang ini, di warung mana | Dokumen `users/{uid}` + Security Rules |
 
 **Lolos autentikasi tidak berarti lolos otorisasi.** Pemilik akun Google mana pun
-bisa membuktikan identitasnya, begitu juga pemilik nomor HP mana pun. Yang
-menentukan boleh tidaknya menyentuh data, dan data warung yang mana, adalah
-dokumen `users/{uid}` beserta `tenantId` di dalamnya.
+bisa membuktikan identitasnya. Yang menentukan boleh tidaknya menyentuh data, dan
+data unit usaha yang mana, adalah dokumen `users/{uid}` beserta `tenantId` di
+dalamnya.
 
-Ada tiga metode masuk. Nomor HP didahulukan di layar dan dua sisanya
-disembunyikan di balik satu tautan, karena pemilik warung menghafal nomornya
-sendiri, tidak selalu punya email, dan tidak perlu memilih apa apa.
+Ada dua metode masuk, dan keduanya berbasis email.
 
 | Metode | Untuk siapa | Catatan |
 | --- | --- | --- |
-| Nomor HP (OTP) | Orang unit usaha | Butuh reCAPTCHA, kode enam angka lewat SMS. Boleh diketik `0851…` maupun `+62851…` |
-| Email dan kata sandi | Admin platform, dan orang warung yang dibuatkan admin | Tidak butuh reCAPTCHA |
-| Google | Akun yang sudah ada | Tidak bisa dibuatkan admin, harus sign-in sendiri dulu |
+| Email dan kata sandi | Semua orang | Akunnya dibuat admin, kata sandinya diberikan |
+| Google | Akun yang sudah ada | Tidak bisa dibuatkan admin. Orangnya sign-in sekali, ditolak, lalu UID-nya didaftarkan admin |
 
-## Alur masuk dengan nomor HP
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor U as Pemilik warung
-  participant LP as LoginPage
-  participant AC as AuthContext
-  participant PA as lib/phoneAuth
-  participant RC as reCAPTCHA
-  participant FA as Firebase Auth
-
-  U->>LP: ketik 0851 5665 7853, tekan Kirim kode
-  LP->>LP: toE164 jadi +6285156657853
-  LP->>AC: requestPhoneCode(nomor, wadah)
-  AC->>PA: requestOtp(auth, nomor, wadah)
-  PA->>RC: RecaptchaVerifier invisible
-  RC-->>PA: token
-  PA->>FA: signInWithPhoneNumber
-  FA-->>PA: ConfirmationResult
-  PA-->>LP: { confirmation, cleanup }
-  LP-->>U: kolom Kode OTP muncul
-
-  U->>LP: ketik enam angka
-  LP->>AC: confirmPhoneCode(challenge, kode)
-  AC->>FA: confirmation.confirm(kode)
-
-  alt kode salah
-    FA-->>AC: auth/invalid-verification-code
-    AC-->>LP: throw
-    LP-->>U: "Kode OTP salah. Periksa lagi angkanya."
-  else kode benar
-    FA-->>AC: User
-    Note over AC: lanjut ke pemeriksaan pendaftaran di bawah
-  end
-```
-
-**Nomor selalu disimpan dalam E.164** (`+6285…`) dan hanya ditampilkan sebagai
-`0851…`. Konversinya cuma ada di [`src/lib/phone.ts`](../src/lib/phone.ts),
-supaya tidak ada layar yang menebak sendiri lalu mengirim nomor yang salah.
-
-**Masuk pertama kali bisa sekaligus jadi pendaftaran.** Kalau nomor itu punya
-undangan, barisnya di `users` dibuat tepat setelah OTP-nya berhasil, dan orangnya
-langsung mendarat di unit usahanya tanpa pernah melihat penolakan. Alurnya di
-[Multi Warung](./multi-warung.md#undangan-nomor-hp).
-
-**reCAPTCHA memakai kotak centang, bukan mode tak terlihat.** Mode tak terlihat
-lebih rapi, tapi hanya selama ia mempercayai pengunjungnya. Kalau tidak, ia
-menaikkan tantangan gambar, dan kalau tantangan itu tidak diselesaikan maka
-`signInWithPhoneNumber` tidak pernah selesai: tanpa error, tanpa SMS, hanya
-tombol yang berputar. Kegagalan yang tidak bisa dilihat maupun dilaporkan adalah
-yang terburuk untuk layar masuk, jadi ditukar dengan satu ketukan yang terlihat.
-
-**Ada batas waktu.** Permintaan yang tidak dijawab dalam tiga menit berhenti
-dengan `auth/otp-timeout`, bukan menggantung selamanya.
-
-**Pembersihan reCAPTCHA harus tahan dipanggil berkali kali.**
-`RecaptchaVerifier.clear()` melempar `auth/internal-error` kalau verifiernya
-sudah dibuang, dan dua pemanggil yang sama sama benar memang memanggilnya dua
-kali: alur OTP membersihkan setelah kodenya dipakai, lalu React membersihkan
-sekali lagi saat layarnya dilepas. Lemparan kedua itu terjadi di dalam cleanup
-efek, jadi tidak ada yang menangkapnya dan seluruh aplikasi ikut kosong tepat
-setelah kode yang benar dimasukkan.
+**Masuk lewat nomor HP pernah ada di sini dan dicabut kembali.** Bukan karena
+rusak: OTP menuntut reCAPTCHA, dan reCAPTCHA menuntut satu langkah lagi dari
+orang yang sedang membuka kasir. Bersamanya ikut hilang koleksi `invites` dan
+satu satunya jalur pendaftaran mandiri. Lihat
+[Multi Warung](./multi-warung.md#nomor-hp-pernah-jadi-cara-ketiga).
 
 ## Alur masuk dengan email dan kata sandi
 
@@ -200,7 +139,6 @@ stateDiagram-v2
 
   TanpaSesi --> MemeriksaStaf: kredensial diterima
   MemeriksaStaf --> Masuk: baris users ada dan aktif
-  MemeriksaStaf --> Masuk: belum ada baris,<br/>tapi nomornya diundang
   MemeriksaStaf --> Ditolak: belum terdaftar, atau dinonaktifkan
   MemeriksaStaf --> GagalMemuatProfil: pemeriksaan gagal, jaringan
 

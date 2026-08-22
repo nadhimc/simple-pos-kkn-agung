@@ -63,7 +63,7 @@ src/
   features/      komponen khusus satu domain (cashier, products, expenses,
                  sales, dashboard, recipes, admin)
   hooks/         useProducts, usePeriod, useAdmin, useTheme
-  lib/           firebase, format, profit, hpp, units, phone, phoneAuth, errors, cn
+  lib/           firebase, format, profit, hpp, units, phone, pwa, errors, cn
   pages/         satu berkas per rute, default export
   services/      seluruh akses Firestore, termasuk paths.ts
   types/         model data
@@ -133,9 +133,15 @@ baris.
 
 ## Kontrol akses
 
-Ada tiga metode masuk: nomor HP (OTP), email/password, dan Google. Ketiganya
-hanya membuktikan **siapa** orangnya, bukan bahwa dia berhak masuk. Siapa pun
-pemilik akun Google atau nomor HP bisa lolos tahap autentikasi.
+Ada dua metode masuk: email/password dan Google. Keduanya hanya membuktikan
+**siapa** orangnya, bukan bahwa dia berhak masuk. Siapa pun pemilik akun Google
+bisa lolos tahap autentikasi.
+
+**Masuk lewat nomor HP pernah ada dan dicabut kembali.** Bukan karena rusak,
+melainkan karena OTP menuntut reCAPTCHA dan reCAPTCHA menuntut satu langkah lagi
+dari orang yang sedang membuka kasir. Bersamanya ikut dicabut koleksi `invites`
+dan satu satunya jalur di mana seseorang menulis barisnya sendiri di `users`.
+Riwayatnya utuh di git; kalau dikembalikan, kembalikan keduanya sekaligus.
 
 Yang menentukan boleh tidaknya masuk, dan ke warung yang mana, adalah dokumen
 `users/{uid}`. `firestore.rules` membacanya di sisi server pada setiap
@@ -174,44 +180,16 @@ masuk menampilkan UID-nya supaya bisa dikirim ke admin. Admin bisa mendaftarkan
 UID itu langsung lewat mode UID di form pengguna, yang juga satu satunya cara
 mendaftarkan orang yang hanya punya akun Google.
 
-### Nomor HP: undangan, bukan OTP di sisi admin
-
-Nomor HP tidak bisa didaftarkan sepihak oleh siapa pun: OTP-nya dikirim ke HP
-orangnya, dengan atau tanpa backend. Karena itu admin tidak mendaftarkan
-nomornya, melainkan **mengundang**: `invites/{nomor E.164}` berisi nama, peran,
-dan `tenantId`. Orangnya lalu masuk sendiri kapan saja, dan barisnya di `users`
-dibuat pada saat itu juga oleh `claimInvite`.
-
-**Ini satu satunya tempat seseorang menulis barisnya sendiri di `users`.** Yang
-menahannya bukan kode klien melainkan `firestore.rules`: undangannya harus ada
-untuk nomor yang tercantum di `request.auth.token.phone_number`, dan `tenantId`
-serta perannya dibaca dari undangan itu di sisi server. Undangan tidak pernah
-bisa menghasilkan peran `admin`.
-
-Undangan hilang sendiri begitu dipakai. Yang belum terpakai muncul di halaman
-Pengguna sebagai "Menunggu masuk pertama", supaya admin tahu ada orang yang
-belum juga menyentuh aplikasinya.
-
-**Form pengguna tidak memilihkan unit usaha otomatis** saat ada lebih dari satu.
-Bawaan berdasarkan urutan abjad membuat admin yang tidak memperhatikan dropdown
-memasukkan orang ke unit yang salah tanpa satu pun tanda, dan salah tempat
-seperti itu baru ketahuan setelah orangnya membuka pembukuan yang bukan miliknya.
-
 ### Membuat akun tanpa kehilangan sesi sendiri
 
-`createUserWithEmailAndPassword` dan `confirmationResult.confirm` sama sama ikut
-me-login akun yang baru dibuat. Kalau dijalankan di instance Firebase utama,
-admin yang sedang mendaftarkan pemilik warung akan langsung terlempar keluar dan
-berganti jadi orang itu.
+`createUserWithEmailAndPassword` ikut me-login akun yang baru dibuat. Kalau
+dijalankan di instance Firebase utama, admin yang sedang mendaftarkan pemilik
+unit usaha akan langsung terlempar keluar dan berganti jadi orang itu.
 
 Karena itu pendaftaran berjalan di **instance Firebase kedua** dengan
 `inMemoryPersistence` (`registrarAuth` di `src/services/users.ts`). Sesi di
 instance utama tidak tersentuh, dan tidak ada sesi menggantung milik orang lain
 di perangkat admin.
-
-Nomor HP tidak bisa didaftarkan sepihak: OTP-nya dikirim ke HP orangnya, dengan
-atau tanpa backend. Jadi alurnya memang dibuat berdua, admin mengetik nomornya
-lalu pemilik warung membacakan kodenya.
 
 ### Penjagaan rute
 
@@ -288,7 +266,6 @@ Dua koleksi di akar, dan lima subkoleksi di bawah tiap warung.
 
 ```
 users/{uid}
-invites/{nomorE164}
 tenants/{tenantId}
 tenantStats/{tenantId}
 tenants/{tenantId}/products/{id}
@@ -306,13 +283,9 @@ tetangga ikut terbaca. Dengan bentuk jalur, aturannya
 salah ditolak server. Jangan membalik ini.
 
 **`users`** — id dokumen adalah `uid` dari Firebase Auth. Isinya `name, email,
-phone, role` (`admin`, `pemilik`, atau `kasir`), `tenantId`, `active`,
+phone` (kosong, sisa dari masa login nomor HP), `role` (`admin`, `pemilik`, atau `kasir`), `tenantId`, `active`,
 `createdAt`. `tenantId` kosong hanya untuk admin platform. Ditulis admin lewat
 aplikasi, kecuali baris admin pertama yang datang dari skrip seed.
-
-**`invites`** — id dokumennya adalah nomor HP dalam format E.164. Isinya `name,
-role, tenantId, createdAt`. Ditulis admin, dibaca dan dihapus oleh pemilik
-nomornya sendiri. Hilang begitu dipakai.
 
 **`tenants`** — `name, ownerName, phone, address, active, createdAt, updatedAt`.
 Hanya identitas unit usaha, tanpa angka usaha. `active: false` menutup seluruh
@@ -400,8 +373,8 @@ satu tab dan laporan di tab lain.
 **Sesi sengaja dibuat awet, dan tidak ada PIN.** Persistensi auth dipasang
 IndexedDB dengan localStorage sebagai cadangan. Refresh token Firebase tidak
 punya masa berlaku, jadi selama tidak logout orangnya tidak akan pernah diminta
-OTP lagi di perangkat yang sama. Itu memang tujuannya: masuk lewat OTP setiap
-buka aplikasi terlalu merepotkan untuk warung.
+masuk lagi di perangkat yang sama. Itu memang tujuannya: mengetik kata sandi
+setiap buka aplikasi terlalu merepotkan untuk warung.
 
 Kalau nanti ingin menambah kunci layar berupa PIN, sadari batasnya sejak awal:
 tanpa backend, PIN tidak mungkin ditukar jadi sesi Firebase, jadi ia hanya
@@ -454,37 +427,11 @@ sendiri.
   `index.css`, bukan membuka jendela baru, supaya jalan di printer termal murah.
 - Enter di kolom pencarian kasir menambahkan satu satunya hasil yang cocok. Itu
   yang membuat pemindai barcode USB bekerja.
-- **reCAPTCHA untuk masuk lewat nomor HP sengaja memakai kotak centang, bukan
-  mode tak terlihat.** Mode tak terlihat menaikkan tantangan gambar saat ia tidak
-  mempercayai pengunjungnya, dan kalau tantangan itu tidak diselesaikan maka
-  `signInWithPhoneNumber` tidak pernah selesai: tanpa error, tanpa SMS, hanya
-  tombol berputar selamanya. Kegagalan yang tidak bisa dilihat maupun dilaporkan
-  adalah yang terburuk untuk layar masuk. Harganya satu ketukan, sekali seumur
-  perangkat, karena sesinya bertahan selamanya.
-- **`requestOtp` punya batas waktu.** Permintaan yang tidak dijawab menghasilkan
-  `auth/otp-timeout` yang bisa dibaca pengguna, bukan spinner abadi.
-- `auth.languageCode = 'id'` mengatur bahasa untuk yang digambar Firebase
-  sendiri: kotak reCAPTCHA dan isi SMS verifikasi.
-- **Pengujian otomatis login HP memakai `appVerificationDisabledForTesting`, dan
-  itu MELEWATI reCAPTCHA sepenuhnya.** Hasil hijau dari uji semacam itu tidak
-  mengatakan apa pun tentang jalur reCAPTCHA. Kalau mengubah alur OTP, uji juga
-  tanpa saklar tersebut.
-- Masuk lewat nomor HP wajib melewati reCAPTCHA, termasuk untuk nomor uji.
-  `RecaptchaVerifier.clear()` melempar `auth/internal-error` kalau dipanggil dua
-  kali, dan dua pemanggil yang sama sama benar memang memanggilnya dua kali, jadi
-  `cleanup` di `src/lib/phoneAuth.ts` dibuat tahan dipanggil berkali kali. Tanpa
-  itu seluruh aplikasi kosong tepat setelah kode yang benar dimasukkan.
-- Nomor HP **disimpan** selalu dalam E.164 (`+6285…`) dan **ditampilkan** selalu
-  sebagai `0851…`. Yang **diketik** boleh bentuk apa pun: `0851…`, `851…`,
-  `62851…`, atau `+62851…`, dengan spasi atau tanda hubung sesukanya. Seluruh
-  konversinya cuma di `src/lib/phone.ts`; jangan menebak nebak di layar mana pun.
-- Nomor uji didaftarkan di Firebase Console, menu Authentication, Sign-in method,
-  Phone, Phone numbers for testing. Nomor uji tidak mengirim SMS dan tidak
-  memakai kuota.
-- Browser headless membuat reCAPTCHA menaikkan tantangan gambar, jadi login HP
-  tidak bisa diotomasi apa adanya. Saklar resminya
-  `auth.settings.appVerificationDisabledForTesting`, dan itu diset dari luar
-  lewat modul yang sama, bukan ditanam di kode aplikasi.
+- Nomor HP masih dipakai sebagai nomor kontak unit usaha, bukan untuk masuk.
+  **Disimpan** dalam E.164 (`+6285…`), **ditampilkan** sebagai `0851…`, dan yang
+  **diketik** boleh bentuk apa pun. Konversinya cuma di `src/lib/phone.ts`.
+- Provider Phone masih aktif di Firebase Console dan tidak mengganggu apa pun,
+  tapi tidak ada satu pun kode aplikasi yang memakainya lagi.
 
 ## Aplikasi terpasang
 

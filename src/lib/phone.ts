@@ -1,10 +1,12 @@
 /**
  * NOMOR HP.
  *
- * Firebase menerima dan mengembalikan nomor dalam format E.164 (+6285…),
- * sementara orang Indonesia menulis dan membaca 0851…. Kedua bentuk itu harus
- * bertemu di satu tempat saja, di sini, supaya tidak ada layar yang menebak
- * sendiri lalu mengirim nomor yang salah ke Firebase.
+ * Dipakai untuk nomor kontak unit usaha, dan untuk menampilkan nomor pada baris
+ * pengguna lama dari masa login nomor HP. Sudah tidak dipakai untuk masuk.
+ *
+ * Disimpan dalam E.164 (+6285…) sementara orang Indonesia menulis dan membaca
+ * 0851…. Kedua bentuk itu bertemu di satu tempat saja, di sini, supaya tidak ada
+ * layar yang menebak sendiri.
  */
 
 const COUNTRY = '62'
@@ -25,11 +27,6 @@ export function toE164(input: string): string {
   if (digits.startsWith(COUNTRY)) return `+${digits}`
   // 851… tanpa nol di depan.
   return `+${COUNTRY}${digits}`
-}
-
-/** Panjangnya mengikuti batas E.164: paling sedikit 8, paling banyak 15 digit. */
-export function isValidPhone(e164: string): boolean {
-  return /^\+[1-9]\d{7,14}$/.test(e164)
 }
 
 /** +6285156657853 ditampilkan sebagai 0851-5665-7853. */

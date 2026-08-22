@@ -22,7 +22,6 @@ import {
 } from 'firebase/firestore'
 import { app } from '@/lib/firebase'
 import { usersRef } from './paths'
-import { deleteInvite, getInvite } from './invites'
 import type { AppUser, UserRole } from '@/types'
 
 function mapUser(snapshot: QueryDocumentSnapshot<DocumentData>): AppUser {
@@ -82,7 +81,6 @@ export interface NewUserDraft {
   /** Wajib untuk orang warung, dan wajib kosong untuk admin platform. */
   tenantId: string
   email: string
-  phone: string
 }
 
 /* ------------------------------------------------------ instance pendaftar */
@@ -145,7 +143,10 @@ async function writeUserDoc(uid: string, draft: NewUserDraft) {
   await setDoc(doc(usersRef, uid), {
     name: draft.name.trim(),
     email: draft.email.trim(),
-    phone: draft.phone.trim(),
+    // Dipertahankan sebagai field kosong, bukan dihilangkan: baris lama dari
+    // masa login nomor HP masih menyimpan nomornya, dan daftar pengguna
+    // menampilkannya kalau ada.
+    phone: '',
     role: draft.role,
     tenantId: draft.tenantId,
     active: true,
@@ -167,43 +168,6 @@ export async function createUserWithEmail(draft: NewUserDraft, password: string)
   } finally {
     await signOut(registrar)
   }
-}
-
-/* -------------------------------------------------------- menerima undangan */
-
-/**
- * Membuat baris pengguna untuk orang yang baru saja masuk lewat nomor HP dan
- * ternyata punya undangan.
- *
- * Ini satu satunya tempat seseorang menulis barisnya sendiri, dan yang
- * menahannya bukan kode ini melainkan firestore.rules: undangannya harus ada
- * untuk nomor yang tercantum di tokennya, dan peran serta unit usahanya dibaca
- * dari undangan itu di sisi server. Mengubah nilai di sini tidak akan lolos.
- *
- * Undangannya dihapus sesudahnya. Kalau penghapusan itu gagal, barisnya sudah
- * terlanjur ada dan orangnya tetap bisa masuk; undangan yang tertinggal cuma
- * membuat admin melihat satu baris "menunggu" yang bisa dibatalkan manual.
- */
-export async function claimInvite(user: User): Promise<AppUser | null> {
-  const phone = user.phoneNumber
-  if (!phone) return null
-
-  const invite = await getInvite(phone)
-  if (!invite) return null
-
-  await writeUserDoc(user.uid, {
-    name: invite.name,
-    role: invite.role,
-    tenantId: invite.tenantId,
-    email: '',
-    phone,
-  })
-
-  await deleteInvite(phone).catch(() => {
-    // Bukan alasan untuk menggagalkan proses masuknya.
-  })
-
-  return getAppUser(user.uid)
 }
 
 /* ------------------------------------------------------------ akun yang ada */

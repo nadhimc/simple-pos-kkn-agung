@@ -15,12 +15,10 @@ import {
   UserProfileWriteError,
   type NewUserDraft,
 } from '@/services/users'
-import { createInvite } from '@/services/invites'
 import { writeErrorMessage } from '@/lib/errors'
-import { formatPhone, isValidPhone, toE164 } from '@/lib/phone'
 import type { AppUser, Tenant, UserRole } from '@/types'
 
-type Mode = 'hp' | 'email' | 'uid'
+type Mode = 'email' | 'uid'
 
 interface UserFormModalProps {
   open: boolean
@@ -33,9 +31,8 @@ interface UserFormModalProps {
 }
 
 const MODE_OPTIONS: { value: Mode; label: string }[] = [
-  { value: 'hp', label: 'Nomor HP' },
-  { value: 'email', label: 'Email' },
-  { value: 'uid', label: 'UID' },
+  { value: 'email', label: 'Buat akun email' },
+  { value: 'uid', label: 'Akun yang sudah ada' },
 ]
 
 const ROLE_OPTIONS = [
@@ -51,7 +48,7 @@ export function UserFormModal({
   tenants,
   defaultTenantId,
 }: UserFormModalProps) {
-  const [mode, setMode] = useState<Mode>('hp')
+  const [mode, setMode] = useState<Mode>('email')
   const [name, setName] = useState('')
   const [tenantId, setTenantId] = useState('')
   const [role, setRole] = useState<UserRole>('pemilik')
@@ -59,7 +56,6 @@ export function UserFormModal({
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [phone, setPhone] = useState('')
   const [uid, setUid] = useState('')
 
   const [error, setError] = useState('')
@@ -67,7 +63,7 @@ export function UserFormModal({
 
   useEffect(() => {
     if (!open) return
-    setMode('hp')
+    setMode('email')
     setError('')
     setSaving(false)
     setPassword('')
@@ -90,7 +86,6 @@ export function UserFormModal({
     setRole(user?.role ?? 'pemilik')
     setActive(user?.active ?? true)
     setEmail(user?.email ?? '')
-    setPhone(user?.phone ?? '')
   }, [open, user, defaultTenantId, tenants])
 
   // Admin platform mengelola unit usaha, bukan menjalankannya, jadi barisnya
@@ -103,25 +98,16 @@ export function UserFormModal({
       name: name.trim(),
       role,
       tenantId: isAdminRole ? '' : tenantId,
-      email: mode === 'email' ? email.trim() : '',
-      phone: mode === 'hp' ? toE164(phone) : '',
+      email: email.trim(),
     }
   }
 
   function validate() {
     if (!name.trim()) return 'Nama wajib diisi.'
     if (!isAdminRole && !tenantId) return 'Pilih unit usaha dulu.'
-    // Undangan nomor HP membuat barisnya sendiri saat orangnya masuk, dan jalur
-    // itu sengaja tidak boleh menghasilkan admin. Ditolak di sini juga supaya
-    // perannya tidak diam diam diturunkan tanpa admin menyadarinya.
-    if (mode === 'hp' && isAdminRole) {
-      return 'Admin tidak bisa diundang lewat nomor HP. Pakai email atau UID.'
-    }
     if (mode === 'email' && !email.trim()) return 'Email wajib diisi.'
     if (mode === 'email' && password.length < 6)
       return 'Kata sandi minimal enam karakter.'
-    if (mode === 'hp' && !isValidPhone(toE164(phone)))
-      return 'Nomor HP tidak valid. Tulis seperti 0851 5665 7853.'
     if (mode === 'uid' && !uid.trim()) return 'UID wajib diisi.'
     return ''
   }
@@ -159,25 +145,11 @@ export function UserFormModal({
     try {
       if (mode === 'email') {
         await createUserWithEmail(draftOf(), password)
-        toast.success(`${name.trim()} didaftarkan.`)
-      } else if (mode === 'uid') {
-        await registerExistingUid(uid, { ...draftOf(), email: email.trim() })
-        toast.success(`${name.trim()} didaftarkan.`)
       } else {
-        // Nomor HP tidak bisa didaftarkan sepihak, jadi yang disimpan adalah
-        // undangannya. Barisnya lahir sendiri saat orangnya masuk.
-        await createInvite({
-          phone: toE164(phone),
-          name: name.trim(),
-          // validate() sudah menolak peran admin untuk jalur ini.
-          role: role === 'pemilik' ? 'pemilik' : 'kasir',
-          tenantId,
-        })
-        toast.success(
-          `Undangan untuk ${formatPhone(toE164(phone))} disimpan. ${name.trim()} tinggal masuk pakai nomor itu.`,
-        )
+        await registerExistingUid(uid, draftOf())
       }
 
+      toast.success(`${name.trim()} didaftarkan.`)
       onClose()
     } catch (caught) {
       // Akun Auth-nya sudah jadi tapi barisnya gagal ditulis. Menyembunyikan ini
@@ -203,11 +175,7 @@ export function UserFormModal({
     ...tenants.map((tenant) => ({ value: tenant.id, label: tenant.name })),
   ]
 
-  const submitLabel = user
-    ? 'Simpan perubahan'
-    : mode === 'hp'
-      ? 'Simpan undangan'
-      : 'Daftarkan'
+  const submitLabel = user ? 'Simpan perubahan' : 'Daftarkan'
 
   return (
     <Modal
@@ -216,8 +184,8 @@ export function UserFormModal({
       title={user ? 'Ubah pengguna' : 'Daftarkan pengguna'}
       description={
         user
-          ? 'Email dan nomor HP tidak bisa diubah, karena itu identitas akunnya di Firebase.'
-          : 'Tidak ada pendaftaran mandiri. Semua berawal dari sini, termasuk undangan nomor HP.'
+          ? 'Email tidak bisa diubah, karena itu identitas akunnya di Firebase.'
+          : 'Tidak ada pendaftaran mandiri. Semua akun dibuat dari sini.'
       }
       footer={
         <>
@@ -244,11 +212,9 @@ export function UserFormModal({
               options={MODE_OPTIONS}
             />
             <p className="pt-2 text-xs text-ink-muted">
-              {mode === 'hp'
-                ? 'Paling mudah, dan tidak perlu OTP di sini. Cukup tulis nomornya; orangnya masuk sendiri kapan saja dari HP-nya.'
-                : mode === 'email'
-                  ? 'Akun dan kata sandinya dibuat di sini, lalu diberikan ke orangnya.'
-                  : 'Untuk akun yang sudah pernah masuk, misalnya lewat Google. UID-nya ditampilkan halaman masuk saat ditolak.'}
+              {mode === 'email'
+                ? 'Akun dan kata sandinya dibuat di sini, lalu diberikan ke orangnya.'
+                : 'Untuk akun yang sudah pernah masuk, misalnya lewat Google. UID-nya ditampilkan halaman masuk saat ditolak.'}
             </p>
           </div>
         ) : null}
@@ -306,23 +272,6 @@ export function UserFormModal({
           />
         ) : null}
 
-        {!user && mode === 'hp' ? (
-          <TextField
-            label="Nomor HP"
-            type="tel"
-            inputMode="tel"
-            placeholder="0851 5665 7853"
-            required
-            value={phone}
-            helper={
-              isValidPhone(toE164(phone))
-                ? `Disimpan sebagai ${toE164(phone)}`
-                : 'Boleh ditulis 0851…, 851…, atau +62851…. Semuanya diperlakukan sama.'
-            }
-            onChange={(event) => setPhone(event.target.value)}
-          />
-        ) : null}
-
         {!user && mode === 'email' ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField
@@ -354,7 +303,7 @@ export function UserFormModal({
               onChange={(event) => setUid(event.target.value)}
             />
             <TextField
-              label="Email atau nomor HP"
+              label="Email"
               helper="Opsional, hanya untuk ditampilkan di daftar."
               value={email}
               onChange={(event) => setEmail(event.target.value)}

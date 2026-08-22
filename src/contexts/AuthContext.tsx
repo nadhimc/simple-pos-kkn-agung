@@ -16,9 +16,7 @@ import {
   type User,
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import { requestOtp, type CaptchaSize, type PhoneChallenge } from '@/lib/phoneAuth'
-import { formatPhone } from '@/lib/phone'
-import { claimInvite, getAppUser } from '@/services/users'
+import { getAppUser } from '@/services/users'
 import { getTenant } from '@/services/tenants'
 import type { AppUser, Tenant } from '@/types'
 
@@ -41,12 +39,6 @@ interface AuthContextValue {
   reloadProfile: () => void
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
-  requestPhoneCode: (
-    phoneE164: string,
-    container: HTMLElement,
-    size?: CaptchaSize,
-  ) => Promise<PhoneChallenge>
-  confirmPhoneCode: (challenge: PhoneChallenge, code: string) => Promise<void>
   signOutUser: () => Promise<void>
 }
 
@@ -74,30 +66,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         setProfileError('')
-        let profile = await getAppUser(nextUser.uid)
+        const profile = await getAppUser(nextUser.uid)
 
-        // Belum punya baris, tapi mungkin diundang. Undangan dicari berdasarkan
-        // nomor yang ada di TOKEN-nya, bukan yang diketik siapa pun, jadi tidak
-        // ada cara memakai undangan milik orang lain. Perannya dan unit
-        // usahanya ikut dari undangan itu.
-        if (!profile && nextUser.phoneNumber) {
-          profile = await claimInvite(nextUser)
-        }
-
-        // Login hanya membuktikan siapa orangnya. Sejak Google dan nomor HP
-        // aktif, siapa pun bisa lolos tahap itu. Yang menentukan boleh
-        // tidaknya masuk adalah baris di koleksi `users`, yang cuma bisa
-        // dibuat admin atau lahir dari undangan admin.
+        // Login hanya membuktikan siapa orangnya. Dengan Google aktif, siapa pun
+        // pemilik akun Google bisa lolos tahap itu. Yang menentukan boleh
+        // tidaknya masuk adalah baris di koleksi `users`, yang cuma bisa dibuat
+        // admin.
         if (!profile) {
-          // Pesannya dibedakan menurut cara masuknya. Orang yang masuk lewat
-          // nomor HP hanya perlu nomornya diundang, dan menyodorkan UID kepada
-          // mereka justru menyesatkan: admin tidak membutuhkannya.
           setAccessError(
-            nextUser.phoneNumber
-              ? `Nomor ${formatPhone(nextUser.phoneNumber)} belum terdaftar. ` +
-                  'Minta admin mengundang nomor ini lewat halaman Pengguna.'
-              : `Akun ${nextUser.email ?? 'ini'} belum terdaftar. ` +
-                  `Minta admin mendaftarkannya dengan UID berikut: ${nextUser.uid}`,
+            `Akun ${nextUser.email ?? 'ini'} belum terdaftar. ` +
+              `Minta admin mendaftarkannya dengan UID berikut: ${nextUser.uid}`,
           )
           await signOut(auth)
           return
@@ -188,17 +166,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         provider.setCustomParameters({ prompt: 'select_account' })
         await signInWithPopup(auth, provider)
       },
-      requestPhoneCode: async (phoneE164, container, size) => {
-        setAccessError('')
-        return requestOtp(auth, phoneE164, container, size)
-      },
-      confirmPhoneCode: async (challenge, code) => {
-        try {
-          await challenge.confirmation.confirm(code)
-        } finally {
-          challenge.cleanup()
-        }
-      },
       signOutUser: async () => {
         setAccessError('')
         await signOut(auth)
@@ -238,7 +205,7 @@ export function useTenantId() {
 export function displayNameOf(user: User | null, appUser?: AppUser | null) {
   if (appUser?.name) return appUser.name
   if (!user) return 'Tidak diketahui'
-  return user.displayName || user.email?.split('@')[0] || user.phoneNumber || 'Kasir'
+  return user.displayName || user.email?.split('@')[0] || 'Kasir'
 }
 
 /** Pesan error Firebase Auth diterjemahkan ke bahasa yang dimengerti pengguna. */
@@ -277,30 +244,6 @@ export function authErrorMessage(error: unknown) {
       return 'Email ini sudah dipakai akun lain. Kalau orangnya sudah pernah masuk, daftarkan lewat UID.'
     case 'auth/weak-password':
       return 'Kata sandi terlalu pendek. Minimal enam karakter.'
-
-    // Masuk lewat nomor HP.
-    case 'auth/invalid-phone-number':
-    case 'auth/missing-phone-number':
-      return 'Nomor HP tidak valid. Tulis seperti 0851 5665 7853.'
-    case 'auth/invalid-verification-code':
-      return 'Kode OTP salah. Periksa lagi angkanya.'
-    case 'auth/code-expired':
-      return 'Kode OTP sudah kedaluwarsa. Minta kode baru.'
-    case 'auth/otp-timeout':
-      return 'Pemeriksaan keamanan belum selesai, jadi kodenya tidak jadi dikirim. Centang kotak "Saya bukan robot" lalu coba lagi.'
-    case 'auth/quota-exceeded':
-      return 'Kuota SMS harian proyek ini sudah habis. Coba lagi besok, atau masuk dengan email.'
-    case 'auth/captcha-check-failed':
-    case 'auth/invalid-app-credential':
-      return 'Pemeriksaan keamanan gagal. Muat ulang halaman lalu coba lagi.'
-    case 'auth/missing-verification-code':
-      return 'Kode OTP belum diisi.'
-    case 'auth/app-not-authorized':
-      return 'Aplikasi ini belum diizinkan memakai login nomor HP untuk proyek tersebut.'
-    case 'auth/billing-not-enabled':
-      return 'Fitur ini butuh paket Firebase berbayar. Hubungi admin.'
-    case 'auth/credential-already-in-use':
-      return 'Nomor ini sudah dipakai akun lain.'
 
     // Kode khusus alur Google.
     case 'auth/popup-closed-by-user':

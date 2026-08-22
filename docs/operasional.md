@@ -82,7 +82,7 @@ tetap membuka layar penuh tanpa bilah alamat.
 | --- | --- | --- |
 | Navigasi halaman | jaringan dulu, cache sebagai cadangan | `index.html` menunjuk bundel mana yang dipakai. Melayaninya dari cache berarti kasir bisa menjalankan versi lama berhari hari setelah perbaikan dikirim |
 | `/assets/*` | cache dulu | Namanya mengandung hash isi, jadi satu nama selamanya berarti satu isi |
-| Firestore, Auth, reCAPTCHA | tidak disentuh | Menyentuhnya hanya mengacaukan langganan real time dan alur OTP |
+| Firestore dan Firebase Auth | tidak disentuh | Menyentuhnya hanya mengacaukan langganan real time dan alur masuk |
 
 Service worker hanya didaftarkan pada build produksi. Di server pengembangan ia
 bersaing dengan hot reload Vite dan menyajikan berkas basi, kesalahan yang
@@ -152,10 +152,9 @@ Setelah admin ada, warung berikutnya lebih enak ditambahkan dari aplikasi: menu
 **Warung** > **Tambah warung**, dan begitu warungnya jadi aplikasi langsung
 menawarkan mendaftarkan orang yang mengelolanya.
 
-> **Admin SDK bisa membuat akun nomor HP tanpa OTP**, sesuatu yang tidak bisa
-> dilakukan aplikasi. Dari browser, nomor HP selalu harus dibuktikan pemilik
-> nomornya. Itu sebabnya pendaftaran nomor HP lewat aplikasi dirancang berdua:
-> admin mengetik nomornya, pemilik warung membacakan kodenya.
+> `--phone` masih diterima skrip ini dan membuat akun nomor HP lewat Admin SDK,
+> tetapi akun semacam itu **tidak bisa dipakai masuk**: aplikasinya sudah tidak
+> punya jalur masuk nomor HP. Pakai `--email` beserta `--password`.
 
 ```mermaid
 flowchart TD

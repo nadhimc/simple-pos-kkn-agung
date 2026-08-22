@@ -7,7 +7,6 @@ ada di [`src/types/index.ts`](../src/types/index.ts).
 
 ```
 users/{uid}                          siapa boleh masuk, ke unit usaha mana
-invites/{nomorE164}                  sudah diundang, belum pernah masuk
 tenants/{tenantId}                   identitas unit usaha
 tenantStats/{tenantId}               ringkasan angka, dibaca admin
 tenants/{tenantId}/products/{id}
@@ -30,7 +29,6 @@ Dua subkoleksi, `recipes` dan `productions`, dibahas terpisah di
 ```mermaid
 erDiagram
   TENANTS ||--|| TENANT_STATS : "diringkas oleh"
-  TENANTS ||--o{ INVITES : "mengundang ke"
   TENANTS ||--o{ USERS : "dibuka oleh"
   TENANTS ||--o{ PRODUCTS : "memiliki"
   TENANTS ||--o{ SALES : "memiliki"
@@ -68,19 +66,11 @@ erDiagram
     map months "kunci YYYY-MM, waktu lokal"
   }
 
-  INVITES {
-    string phone PK "id dokumen, format E.164"
-    string name
-    string role "pemilik atau kasir, tidak pernah admin"
-    string tenantId FK
-    timestamp createdAt
-  }
-
   USERS {
     string uid PK "id dokumen, sama dengan uid Auth"
     string name
     string email "boleh kosong"
-    string phone "E.164, boleh kosong"
+    string phone "sisa dari masa login nomor HP, kosong untuk akun baru"
     string role "admin, pemilik, atau kasir"
     string tenantId FK "kosong hanya untuk admin"
     boolean active "false berarti akses dicabut sementara"
@@ -213,8 +203,8 @@ Tiga akibat yang harus diterima:
 ```json
 {
   "name": "Bu Sri",
-  "email": "",
-  "phone": "+6285156657853",
+  "email": "pemilik@toko.id",
+  "phone": "",
   "role": "pemilik",
   "tenantId": "mfKHMqMi7ltobe3hVXqj",
   "active": true,
@@ -226,9 +216,9 @@ Id dokumen wajib sama persis dengan `uid` dari Firebase Authentication, karena
 Security Rules mencarinya lewat `request.auth.uid`. Id otomatis tidak akan
 pernah cocok.
 
-Salah satu dari `email` atau `phone` terisi, tergantung cara akunnya dibuat.
-Untuk akun yang didaftarkan lewat UID, keduanya boleh kosong: keduanya cuma
-untuk ditampilkan di daftar, bukan untuk mencocokkan apa pun.
+`phone` selalu kosong untuk akun baru: ia sisa dari masa login nomor HP, dan
+dipertahankan supaya baris lama tetap terbaca. Keduanya cuma untuk ditampilkan
+di daftar, bukan untuk mencocokkan apa pun.
 
 `tenantId` kosong hanya untuk `role: "admin"`. Admin platform memang tidak punya
 warung, dan tidak boleh punya.

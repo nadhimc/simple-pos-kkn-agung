@@ -101,51 +101,6 @@ service cloud.firestore {
         );
     }
 
-    /* ----------------------------------------------------------- undangan */
-
-    // UNDANGAN BERDASARKAN NOMOR HP.
-    //
-    // Nomor HP tidak bisa didaftarkan sepihak oleh siapa pun: OTP-nya dikirim ke
-    // HP orangnya, dan itu berlaku dengan atau tanpa backend. Alih alih memaksa
-    // admin dan pemilik unit usaha duduk berdua saat mendaftar, admin cukup
-    // menuliskan nomornya di sini. Orangnya lalu masuk sendiri kapan saja, dan
-    // barisnya di `users` dibuat saat itu juga.
-    //
-    // Id dokumennya adalah nomor dalam format E.164, supaya bisa dicari langsung
-    // dengan satu getDoc tanpa kueri dan tanpa indeks.
-    function isValidInvite() {
-      return request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.tenantId is string
-        && request.resource.data.tenantId.size() > 0
-        && (request.resource.data.role == 'pemilik' || request.resource.data.role == 'kasir');
-    }
-
-    // Undangan hanya boleh dibaca dan dibatalkan oleh pemilik nomornya sendiri.
-    // `phone_number` datang dari token yang ditandatangani Firebase saat OTP-nya
-    // berhasil, jadi tidak ada cara mengaku ngaku memiliki nomor orang lain.
-    function ownsNumber(phone) {
-      return request.auth != null && request.auth.token.phone_number == phone;
-    }
-
-    match /invites/{phone} {
-      allow read: if isAdmin() || ownsNumber(phone);
-      allow create, update: if isAdmin() && isValidInvite();
-      allow delete: if isAdmin() || ownsNumber(phone);
-    }
-
-    // Undangan yang cocok untuk nomor yang sedang masuk. `tenantId` dan peran
-    // dibaca DARI UNDANGAN, bukan dari yang dikirim browser, jadi orang yang
-    // diundang jadi kasir tidak bisa mendaftarkan dirinya sebagai apa pun yang
-    // lain, dan orang yang tidak diundang tidak punya pijakan sama sekali.
-    function matchesInvite() {
-      return exists(/databases/$(database)/documents/invites/$(request.resource.data.phone))
-        && get(/databases/$(database)/documents/invites/$(request.resource.data.phone)).data.tenantId
-          == request.resource.data.tenantId
-        && get(/databases/$(database)/documents/invites/$(request.resource.data.phone)).data.role
-          == request.resource.data.role;
-    }
-
     match /users/{uid} {
       // Membaca baris sendiri sengaja terbuka bagi siapa pun yang sudah login,
       // dan itu memang harus. Orang yang belum terdaftar perlu mendapat jawaban
@@ -154,24 +109,14 @@ service cloud.firestore {
       // jaringan lalu gagal terbuka, dan orang asing justru ikut masuk.
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
 
-      // Dua jalan masuk ke daftar ini, dan keduanya berawal dari admin.
+      // Tidak ada pendaftaran mandiri, satu jalan saja: admin menulisnya.
       //
-      // Yang pertama: admin menulisnya langsung, dipakai untuk akun email dan
-      // untuk mendaftarkan UID yang sudah ada.
-      //
-      // Yang kedua: orang yang diundang menulis barisnya SENDIRI, tepat setelah
-      // OTP-nya berhasil. Yang menahannya adalah undangan untuk nomor yang
-      // tercantum di tokennya, dengan peran dan unit usaha yang dibaca dari
-      // undangan itu. Peran admin tidak pernah bisa lahir dari jalur ini.
-      allow create: if (isAdmin() && isValidUser())
-        || (
-          request.auth.uid == uid
-          && isValidUser()
-          && request.resource.data.role != 'admin'
-          && request.resource.data.active == true
-          && ownsNumber(request.resource.data.phone)
-          && matchesInvite()
-        );
+      // Dulu ada jalan kedua, yaitu orang yang diundang lewat nomor HP menulis
+      // barisnya sendiri setelah OTP-nya berhasil. Itu ikut dicabut bersama
+      // login nomor HP: aturan yang tidak mungkin lagi terpicu tapi tetap
+      // mengizinkan seseorang menulis barisnya sendiri hanya akan menyesatkan
+      // pembaca berikutnya tentang apa yang sebenarnya dijaga di sini.
+      allow create: if isAdmin() && isValidUser();
       allow update: if isAdmin() && isValidUser() && keepsOwnStanding(uid);
 
       // Admin tidak boleh menghapus barisnya sendiri: platform bisa kehilangan

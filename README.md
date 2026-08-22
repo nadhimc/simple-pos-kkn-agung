@@ -29,12 +29,9 @@ Konfigurasi di `.env.example` sudah mengarah ke proyek `simple-pos-kkn-agung`
 (nomor proyek `668925770046`). Yang masih perlu dilakukan di
 [Firebase Console](https://console.firebase.google.com):
 
-1. **Authentication → Sign-in method**: aktifkan **Phone**, **Email/Password**,
-   dan **Google**. Provider Google hanya perlu satu email dukungan; tidak ada
-   client ID yang perlu ditempel ke kode.
-
-   Untuk mencoba login nomor HP tanpa mengirim SMS sungguhan, isi juga **Phone
-   numbers for testing** di halaman yang sama. Nomor uji tidak memakai kuota.
+1. **Authentication → Sign-in method**: aktifkan **Email/Password** dan
+   **Google**. Provider Google hanya perlu satu email dukungan; tidak ada client
+   ID yang perlu ditempel ke kode.
 
 2. **Firestore Database**: pastikan database sudah dibuat, lalu terapkan aturan
    keamanannya. Isi aturannya sudah lengkap di `firestore.rules`, tinggal
@@ -79,7 +76,7 @@ Konfigurasi di `.env.example` sudah mengarah ke proyek `simple-pos-kkn-agung`
 
    ```bash
    npm run seed -- warung --tenant "Warung Gendis" --email agung@toko.id --password rahasia123 --with-products
-   npm run seed -- warung --tenant "Warung Gendis" --phone 085156657853 --role kasir --name "Andi"
+   npm run seed -- warung --tenant "Warung Gendis" --email andi@toko.id --password rahasia123 --role kasir --name "Andi"
    ```
 
    `--with-products` mengisi contoh isi ke warung itu: sembilan bahan baku (gula
@@ -91,7 +88,7 @@ Konfigurasi di `.env.example` sudah mengarah ke proyek `simple-pos-kkn-agung`
 > normal untuk aplikasi Firebase. Yang menjaga data adalah Security Rules.
 >
 > **Sekadar "sudah login" tidak cukup**, karena siapa pun pemilik akun Google
-> atau nomor HP bisa lolos tahap autentikasi. Yang menentukan boleh tidaknya
+> bisa lolos tahap autentikasi. Yang menentukan boleh tidaknya
 > membaca data warung adalah dokumen `users/{uid}` beserta `tenantId` di
 > dalamnya. Karena itu langkah 2 dan 3 tidak boleh dilewati.
 
@@ -155,50 +152,21 @@ Baris kelima membuktikan admin platform memang tidak bisa mengintip pembukuan.
 Dari aplikasi, sebagai admin: menu **Pengguna** → **Daftarkan pengguna**. Ada
 tiga cara, dan ketiganya membuat akunnya tanpa mengganggu sesi Anda.
 
-| Cara | Kapan dipakai | Perlu OTP? |
-| --- | --- | --- |
-| **Nomor HP** | Paling mudah. Tulis nomornya, selesai. Orangnya masuk sendiri kapan saja dari HP-nya, dan barisnya lahir saat itu juga. | Tidak, di sisi Anda |
-| **Email** | Akun dan kata sandinya Anda buat di sini, lalu diberikan ke orangnya. | Tidak |
-| **UID** | Untuk akun yang sudah pernah masuk, misalnya lewat Google. UID-nya ditampilkan halaman masuk saat menolaknya. | Tidak |
-
-Undangan nomor HP yang belum dipakai muncul di bagian **Menunggu masuk pertama**,
-jadi Anda tahu siapa yang belum juga membuka aplikasinya. Undangannya hilang
-sendiri begitu orangnya masuk.
+| Cara | Kapan dipakai |
+| --- | --- |
+| **Buat akun email** | Akun dan kata sandinya Anda buat di sini, lalu diberikan ke orangnya. |
+| **Akun yang sudah ada** | Untuk yang sudah pernah mencoba masuk, misalnya lewat Google. UID-nya ditampilkan halaman masuk saat menolaknya. |
 
 Pilih peran **Admin platform** untuk membuat admin baru. Admin tidak terikat unit
 usaha mana pun, jadi pemilih unit usahanya hilang sendiri. Yang tidak bisa
 dilakukan siapa pun, termasuk admin: menurunkan peran atau menonaktifkan
 **dirinya sendiri**, supaya sistem tidak bisa kehilangan admin terakhirnya.
 
-Nomor HP tidak bisa didaftarkan sepihak, dengan atau tanpa backend: OTP-nya
-dikirim ke HP pemilik nomornya. Undangan memindahkan OTP itu ke tempat yang
-memang seharusnya, yaitu saat orangnya masuk sendiri. Jadi OTP terjadi tepat
-sekali, dan pendaftarannya bisa dilakukan dari jarak jauh.
-
-### Kalau kode SMS tidak kunjung datang
-
-Setelah menekan **Kirim kode**, akan muncul kotak **"Saya bukan robot"** yang
-harus dicentang lebih dulu. SMS baru dikirim setelah centang itu selesai. Kalau
-kotaknya diabaikan, tidak ada SMS yang terkirim dan tidak ada pesan kesalahan,
-karena memang tidak ada yang gagal, hanya belum selesai.
-
-Kalau setelah dicentang tetap gagal, layar masuk sekarang menampilkan kode
-kesalahannya dalam kurung. Sebutkan kode itu, karena dari situ penyebabnya bisa
-ditentukan tanpa menebak.
-
-### Format nomor HP
-
-Ketik sesuka Anda. Keempat bentuk ini diperlakukan sama persis:
-
-```
-085156657853        0851-5665-7853
-85156657853         +62 851 5665 7853
-```
-
-Firebase hanya menerima format internasional, jadi apa pun yang diketik diubah
-ke `+6285156657853` sebelum dikirim, dan itu pula yang **disimpan**. Yang
-**ditampilkan** selalu bentuk lokal `0851-5665-7853`. Kolom nomor menunjukkan
-hasil konversinya langsung di bawah kolom, jadi bisa dicek sebelum disimpan.
+**Masuk lewat nomor HP sudah tidak ada.** Pernah ada, lalu dicabut: OTP menuntut
+reCAPTCHA, dan itu satu langkah tambahan yang tidak sepadan untuk orang yang
+sedang membuka kasir. Nomor HP tetap dipakai sebagai nomor kontak unit usaha,
+bukan untuk masuk. Kalau nanti dibutuhkan lagi, seluruh kodenya masih ada di
+riwayat git.
 
 Mencabut akses ada dua tingkat. **Nonaktifkan** lewat tombol Ubah kalau hanya
 sementara, atau **cabut akses** untuk menghapus barisnya sekaligus. Riwayat
@@ -256,7 +224,7 @@ lalu **Tambahkan ke Layar Utama**. Ikon dan mode layar penuhnya tetap benar.
 
 Tidak ada PIN, dan itu disengaja. Sesi Firebase disimpan di IndexedDB, dan
 refresh token Firebase tidak punya masa berlaku: selama tidak menekan Keluar,
-orangnya tidak akan pernah diminta OTP lagi di HP yang sama.
+orangnya tidak akan pernah diminta masuk lagi di perangkat yang sama.
 
 Kalau nanti ingin menambah kunci PIN, sadari batasnya: tanpa backend, PIN tidak
 mungkin ditukar menjadi sesi Firebase, jadi ia hanya gembok layar di atas sesi
@@ -278,9 +246,9 @@ Authorized domains**, kalau tidak, login akan ditolak dari domain produksi.
 
 ## Cara pakai singkat
 
-1. **Masuk** — pemilik warung cukup mengetik nomor HP-nya, lalu memasukkan kode
-   yang datang lewat SMS. Setelah itu dia tidak akan diminta masuk lagi di HP
-   yang sama.
+1. **Masuk** — pakai email dan kata sandi yang diberikan admin, atau tombol
+   Google kalau akunnya memakai Google. Setelah sekali masuk, dia tidak akan
+   diminta masuk lagi di perangkat yang sama.
 2. **Produk & Stok** — masukkan barang beserta harga modal dan harga jual. Harga
    modal wajib benar, karena dari sanalah laba dihitung. Pilih jenisnya: **bahan
    baku** untuk yang dipakai produksi, **barang jadi** untuk yang dijual.
