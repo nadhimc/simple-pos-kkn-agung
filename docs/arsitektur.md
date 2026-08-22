@@ -12,7 +12,7 @@ flowchart TB
   cashier(["Kasir<br/>peran: kasir"])
   stranger(["Pemilik akun Google<br/>di luar toko"])
 
-  app["Warungku POS<br/>SPA di browser"]
+  app["IPANDAI Jugosari<br/>SPA di browser"]
 
   auth["Firebase Authentication"]
   store[("Cloud Firestore")]

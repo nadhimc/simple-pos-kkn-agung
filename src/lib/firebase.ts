@@ -69,5 +69,10 @@ export const db = initializeFirestore(app, {
 /**
  * Nama layanan, bukan nama warung. Nama warung datang dari dokumen tenant yang
  * sedang dibuka, karena satu pemasangan aplikasi ini melayani banyak warung.
+ *
+ * Sengaja konstanta, bukan environment variable. Ini identitas produk, bukan
+ * konfigurasi per-deployment: menaruhnya di env berarti nama layanan bisa
+ * berbeda antara localhost dan produksi tanpa ada yang menyadarinya.
  */
-export const APP_NAME = import.meta.env.VITE_STORE_NAME || 'Warungku'
+export const APP_NAME = 'IPANDAI Jugosari'
+export const APP_LONG_NAME = 'Sistem Informasi Pengelolaan Dana Desa Jugosari'

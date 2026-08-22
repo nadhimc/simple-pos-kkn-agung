@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { DeviceMobileIcon, EnvelopeSimpleIcon, GoogleLogoIcon, StorefrontIcon } from '@phosphor-icons/react'
 import { authErrorMessage, useAuth } from '@/contexts/AuthContext'
-import { APP_NAME } from '@/lib/firebase'
+import { APP_LONG_NAME, APP_NAME } from '@/lib/firebase'
 import { formatPhone, isValidPhone, toE164 } from '@/lib/phone'
 import type { PhoneChallenge } from '@/lib/phoneAuth'
 import { Button, ErrorState, TextField } from '@/components/ui'
@@ -147,11 +147,11 @@ export default function LoginPage() {
 
         <div className="max-w-md">
           <h1 className="text-4xl leading-tight font-semibold tracking-tight text-sidebar-ink-active">
-            Kasir dan pembukuan warung dalam satu layar.
+            {APP_LONG_NAME}.
           </h1>
           <p className="mt-4 text-base leading-relaxed text-sidebar-ink">
-            Catat penjualan, pantau stok, dan lihat untung rugi harian tanpa perlu
-            menutup buku manual di akhir bulan.
+            Catat penjualan, pantau stok, dan lihat untung rugi tiap unit usaha
+            desa tanpa perlu menutup buku manual di akhir bulan.
           </p>
         </div>
 
