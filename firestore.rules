@@ -46,8 +46,19 @@ service cloud.firestore {
     // Satu akun terikat pada tepat satu tenant. `tenantId`-nya dibaca dari
     // dokumen penggunanya di sisi server, bukan dari apa pun yang dikirim
     // browser, jadi tidak ada cara memalsukannya.
-    function isMemberOf(tenantId) {
+    function belongsTo(tenantId) {
       return isActive() && me().tenantId == tenantId;
+    }
+
+    // Unit usaha yang dinonaktifkan tidak bisa dibuka siapa pun, tapi datanya
+    // tetap utuh. Dokumen lama tanpa field ini dibaca sebagai aktif, jadi tidak
+    // ada migrasi yang perlu dijalankan.
+    function tenantActive(tenantId) {
+      return get(/databases/$(database)/documents/tenants/$(tenantId)).data.active != false;
+    }
+
+    function isMemberOf(tenantId) {
+      return belongsTo(tenantId) && tenantActive(tenantId);
     }
 
     function isPositiveNumber(value) {
@@ -56,16 +67,38 @@ service cloud.firestore {
 
     /* ----------------------------------------------------------- pengguna */
 
-    // Peran 'admin' sengaja tidak termasuk. Tidak ada jalan bagi siapa pun,
-    // termasuk admin yang sudah ada, untuk mengangkat admin baru lewat
-    // aplikasi. Admin hanya lahir dari scripts/seed.mjs yang memakai Admin SDK.
+    // Peran menentukan bentuk barisnya, dan keduanya diperiksa bersama supaya
+    // tidak ada baris setengah jadi: orang warung WAJIB terikat satu warung,
+    // admin platform WAJIB tidak punya warung sama sekali.
+    //
+    // Admin boleh mengangkat admin baru dari aplikasi, tapi hanya admin. Yang
+    // dijaga di sini tetap sama seperti sebelumnya: tidak ada jalan bagi orang
+    // yang belum terdaftar untuk memberi dirinya peran apa pun, karena seluruh
+    // tulisan ke koleksi ini menuntut isAdmin() lebih dulu.
     function isValidUser() {
       return request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.tenantId is string
-        && request.resource.data.tenantId.size() > 0
         && request.resource.data.active is bool
-        && (request.resource.data.role == 'pemilik' || request.resource.data.role == 'kasir');
+        && (
+          (
+            (request.resource.data.role == 'pemilik' || request.resource.data.role == 'kasir')
+            && request.resource.data.tenantId.size() > 0
+          )
+          || (request.resource.data.role == 'admin' && request.resource.data.tenantId == '')
+        );
+    }
+
+    // Admin tidak boleh menurunkan peran atau menonaktifkan dirinya sendiri.
+    // Platform bisa kehilangan admin terakhirnya, dan tidak ada cara
+    // memulihkannya dari dalam aplikasi. Field lain seperti nama tetap boleh
+    // diubah sendiri.
+    function keepsOwnStanding(uid) {
+      return request.auth.uid != uid
+        || (
+          request.resource.data.role == resource.data.role
+          && request.resource.data.active == resource.data.active
+        );
     }
 
     match /users/{uid} {
@@ -77,17 +110,42 @@ service cloud.firestore {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
 
       // Tidak ada pendaftaran mandiri. Seluruh pengguna didaftarkan admin.
-      allow create, update: if isAdmin() && isValidUser();
+      allow create: if isAdmin() && isValidUser();
+      allow update: if isAdmin() && isValidUser() && keepsOwnStanding(uid);
 
       // Admin tidak boleh menghapus barisnya sendiri: platform bisa kehilangan
       // admin terakhirnya, dan tidak ada cara memulihkannya dari dalam aplikasi.
       allow delete: if isAdmin() && request.auth.uid != uid;
     }
 
+    /* ---------------------------------------------------------- ringkasan */
+
+    // RINGKASAN PER UNIT USAHA.
+    //
+    // Ada karena admin sengaja tidak diberi akses ke subkoleksi unit usaha mana
+    // pun, sehingga ia tidak bisa menjumlahkan struk sendiri. Unit usahanya yang
+    // menambahkan angkanya, dalam batch yang sama dengan transaksinya, dan admin
+    // hanya membaca.
+    //
+    // Isinya tidak divalidasi bentuknya, dan itu keputusan sadar: angka di sini
+    // persis sepercaya data yang mendasarinya, tidak lebih. Unit usaha sudah
+    // memegang penuh catatan penjualannya sendiri, jadi ini tidak menuntut
+    // kepercayaan baru. Yang penting dijaga adalah tidak ada unit usaha yang
+    // bisa menulis ringkasan milik unit usaha lain.
+    match /tenantStats/{tenantId} {
+      allow read: if belongsTo(tenantId) || isAdmin();
+      allow write: if isMemberOf(tenantId);
+    }
+
     /* ------------------------------------------------------------- warung */
 
     match /tenants/{tenantId} {
-      allow read: if isMemberOf(tenantId) || isAdmin();
+      // Membaca dokumen unit usahanya sendiri sengaja TIDAK ikut memeriksa
+      // status aktif. Kalau ikut, orang dari unit usaha yang baru dinonaktifkan
+      // akan mendapat permission-denied dan aplikasi membacanya sebagai
+      // gangguan jaringan, bukan sebagai "unit usaha ini sedang ditutup". Yang
+      // dijaga status aktif adalah datanya, di subkoleksi bawah.
+      allow read: if belongsTo(tenantId) || isAdmin();
       allow create, update: if isAdmin()
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0;

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { subscribeTenants } from '@/services/tenants'
 import { subscribeUsers } from '@/services/users'
+import { subscribeTenantStats } from '@/services/stats'
 import { firestoreErrorMessage } from '@/lib/errors'
-import type { AppUser, Tenant } from '@/types'
+import type { AppUser, Tenant, TenantStats } from '@/types'
 
 /**
  * Langganan khusus area admin. Keduanya hanya berisi identitas warung dan
@@ -34,6 +35,32 @@ export function useTenants() {
   )
 
   return { tenants, tenantsById, loading, error }
+}
+
+/**
+ * Ringkasan angka tiap unit usaha. Dijaga oleh unit usahanya sendiri dan hanya
+ * dibaca di sini, karena admin memang tidak boleh membaca struknya langsung.
+ */
+export function useTenantStats() {
+  const [stats, setStats] = useState<Map<string, TenantStats>>(new Map())
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    return subscribeTenantStats(
+      (next) => {
+        setStats(next)
+        setError('')
+        setLoading(false)
+      },
+      (caught) => {
+        setError(firestoreErrorMessage(caught))
+        setLoading(false)
+      },
+    )
+  }, [])
+
+  return { stats, loading, error }
 }
 
 export function useAppUsers() {

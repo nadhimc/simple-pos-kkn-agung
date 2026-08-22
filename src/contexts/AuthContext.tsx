@@ -103,8 +103,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const ownTenant = await getTenant(profile.tenantId)
         if (!ownTenant) {
+          setAccessError('Unit usaha untuk akun ini tidak ditemukan. Hubungi admin.')
+          await signOut(auth)
+          return
+        }
+
+        // Unit usaha yang dinonaktifkan menutup seluruh datanya di sisi server.
+        // Ditolak di sini juga supaya orangnya mendapat penjelasan, bukan layar
+        // yang gagal memuat tanpa sebab yang jelas.
+        if (!ownTenant.active) {
           setAccessError(
-            'Warung untuk akun ini tidak ditemukan. Hubungi admin.',
+            `${ownTenant.name} sedang dinonaktifkan, jadi datanya tidak bisa dibuka. Hubungi admin.`,
           )
           await signOut(auth)
           return

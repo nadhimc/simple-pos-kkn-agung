@@ -23,7 +23,6 @@ import { formatPhone, isValidPhone, toE164 } from '@/lib/phone'
 import type { AppUser, Tenant, UserRole } from '@/types'
 
 type Mode = 'hp' | 'email' | 'uid'
-type TenantRole = Exclude<UserRole, 'admin'>
 
 interface UserFormModalProps {
   open: boolean
@@ -31,7 +30,7 @@ interface UserFormModalProps {
   /** Null berarti mendaftarkan orang baru. */
   user: AppUser | null
   tenants: Tenant[]
-  /** Warung yang dipilih lebih dulu, dipakai saat menambah dari daftar warung. */
+  /** Unit usaha yang dipilih lebih dulu, dipakai saat menambah dari daftarnya. */
   defaultTenantId?: string
 }
 
@@ -42,8 +41,9 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
 ]
 
 const ROLE_OPTIONS = [
-  { value: 'pemilik', label: 'Pemilik' },
+  { value: 'pemilik', label: 'Pemilik unit usaha' },
   { value: 'kasir', label: 'Kasir' },
+  { value: 'admin', label: 'Admin platform' },
 ]
 
 export function UserFormModal({
@@ -56,7 +56,7 @@ export function UserFormModal({
   const [mode, setMode] = useState<Mode>('hp')
   const [name, setName] = useState('')
   const [tenantId, setTenantId] = useState('')
-  const [role, setRole] = useState<TenantRole>('pemilik')
+  const [role, setRole] = useState<UserRole>('pemilik')
   const [active, setActive] = useState(true)
 
   const [email, setEmail] = useState('')
@@ -82,7 +82,7 @@ export function UserFormModal({
     setUid('')
     setName(user?.name ?? '')
     setTenantId(user?.tenantId ?? defaultTenantId ?? tenants[0]?.id ?? '')
-    setRole(user && user.role !== 'admin' ? user.role : 'pemilik')
+    setRole(user?.role ?? 'pemilik')
     setActive(user?.active ?? true)
     setEmail(user?.email ?? '')
     setPhone(user?.phone ?? '')
@@ -94,11 +94,16 @@ export function UserFormModal({
     return () => challenge?.cleanup()
   }, [challenge])
 
+  // Admin platform mengelola unit usaha, bukan menjalankannya, jadi barisnya
+  // wajib tidak terikat unit usaha mana pun. Security Rules menolak baris admin
+  // yang punya tenantId, dan sebaliknya.
+  const isAdminRole = role === 'admin'
+
   function draftOf(): NewUserDraft {
     return {
       name: name.trim(),
       role,
-      tenantId,
+      tenantId: isAdminRole ? '' : tenantId,
       email: mode === 'email' ? email.trim() : '',
       phone: mode === 'hp' ? toE164(phone) : '',
     }
@@ -106,7 +111,7 @@ export function UserFormModal({
 
   function validate() {
     if (!name.trim()) return 'Nama wajib diisi.'
-    if (!tenantId) return 'Pilih warung dulu.'
+    if (!isAdminRole && !tenantId) return 'Pilih unit usaha dulu.'
     if (mode === 'email' && !email.trim()) return 'Email wajib diisi.'
     if (mode === 'email' && password.length < 6)
       return 'Kata sandi minimal enam karakter.'
@@ -123,7 +128,12 @@ export function UserFormModal({
     if (user) {
       setSaving(true)
       try {
-        await updateAppUser(user.uid, { name: name.trim(), role, tenantId, active })
+        await updateAppUser(user.uid, {
+          name: name.trim(),
+          role,
+          tenantId: isAdminRole ? '' : tenantId,
+          active,
+        })
         toast.success(`${name.trim()} diperbarui.`)
         onClose()
       } catch (caught) {
@@ -227,7 +237,7 @@ export function UserFormModal({
             />
             <p className="pt-2 text-xs text-ink-muted">
               {mode === 'hp'
-                ? 'Paling mudah untuk pemilik warung. Kode enam angka dikirim ke HP-nya, lalu dibacakan ke Anda.'
+                ? 'Paling mudah untuk pemilik unit usaha. Kode enam angka dikirim ke HP-nya, lalu dibacakan ke Anda.'
                 : mode === 'email'
                   ? 'Akun dan kata sandinya dibuat di sini, lalu diberikan ke orangnya.'
                   : 'Untuk akun yang sudah pernah masuk, misalnya lewat Google. UID-nya ditampilkan halaman masuk saat ditolak.'}
@@ -246,20 +256,34 @@ export function UserFormModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField
-            label="Warung"
-            value={tenantId}
-            options={tenantOptions}
-            helper="Satu akun hanya bisa membuka satu warung."
-            onChange={(event) => setTenantId(event.target.value)}
-          />
-          <SelectField
             label="Peran"
             value={role}
             options={ROLE_OPTIONS}
-            helper="Belum membatasi akses, hanya keterangan."
-            onChange={(event) => setRole(event.target.value as TenantRole)}
+            helper={
+              isAdminRole
+                ? 'Mengelola unit usaha dan pengguna, tanpa akses ke pembukuannya.'
+                : 'Pemilik dan kasir belum dibedakan haknya, ini baru keterangan.'
+            }
+            onChange={(event) => setRole(event.target.value as UserRole)}
           />
+          {!isAdminRole ? (
+            <SelectField
+              label="Unit usaha"
+              value={tenantId}
+              options={tenantOptions}
+              helper="Satu akun hanya bisa membuka satu unit usaha."
+              onChange={(event) => setTenantId(event.target.value)}
+            />
+          ) : null}
         </div>
+
+        {isAdminRole ? (
+          <p className="rounded-control border border-border bg-surface-2 px-4 py-3 text-xs text-ink-muted">
+            Admin platform tidak terikat unit usaha mana pun, dan sengaja tidak bisa
+            membaca pembukuan unit usaha mana pun. Yang bisa dilihatnya hanya daftar
+            unit usaha, penggunanya, dan ringkasan angkanya.
+          </p>
+        ) : null}
 
         {user ? (
           <SelectField

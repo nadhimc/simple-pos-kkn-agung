@@ -39,6 +39,37 @@ export function computeProfitLoss(sales: Sale[], expenses: Expense[]): ProfitLos
   }
 }
 
+/**
+ * Laba rugi dari angka yang sudah dijumlahkan, bukan dari daftar transaksinya.
+ *
+ * Dipakai ringkasan admin, yang memang tidak boleh membaca struk unit usaha
+ * mana pun dan hanya memegang total per bulan. Rumusnya sengaja memanggil
+ * pengurangan yang sama seperti computeProfitLoss di atas, supaya tidak ada dua
+ * definisi laba yang bisa berbeda.
+ *
+ * `itemsSold` tidak bisa direkonstruksi dari total, jadi dilaporkan nol.
+ */
+export function profitFromTotals(
+  revenue: number,
+  grossProfit: number,
+  operatingExpense: number,
+  transactionCount = 0,
+): ProfitLoss {
+  const netProfit = grossProfit - operatingExpense
+
+  return {
+    revenue,
+    costOfGoodsSold: revenue - grossProfit,
+    grossProfit,
+    operatingExpense,
+    netProfit,
+    transactionCount,
+    itemsSold: 0,
+    grossMargin: revenue > 0 ? (grossProfit / revenue) * 100 : 0,
+    netMargin: revenue > 0 ? (netProfit / revenue) * 100 : 0,
+  }
+}
+
 export interface DailyPoint {
   /** "2026-08-15" */
   date: string

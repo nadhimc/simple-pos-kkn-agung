@@ -21,6 +21,7 @@ const TransactionsPage = lazy(() => import('@/pages/TransactionsPage'))
 const ExpensesPage = lazy(() => import('@/pages/ExpensesPage'))
 const ReportsPage = lazy(() => import('@/pages/ReportsPage'))
 const AdminTenantsPage = lazy(() => import('@/pages/AdminTenantsPage'))
+const AdminSummaryPage = lazy(() => import('@/pages/AdminSummaryPage'))
 const AdminUsersPage = lazy(() => import('@/pages/AdminUsersPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
@@ -67,6 +68,7 @@ export default function App() {
 
                 <Route path="admin" element={<RequireAdmin />}>
                   <Route index element={<AdminTenantsPage />} />
+                  <Route path="ringkasan" element={<AdminSummaryPage />} />
                   <Route path="pengguna" element={<AdminUsersPage />} />
                 </Route>
 

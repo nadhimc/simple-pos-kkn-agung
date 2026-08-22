@@ -78,7 +78,8 @@ export function subscribeUsers(
 
 export interface NewUserDraft {
   name: string
-  role: Exclude<UserRole, 'admin'>
+  role: UserRole
+  /** Wajib untuk orang warung, dan wajib kosong untuk admin platform. */
   tenantId: string
   email: string
   phone: string
@@ -216,7 +217,7 @@ export async function registerExistingUid(uid: string, draft: NewUserDraft) {
 /** Email dan nomor HP tidak ikut diubah: itu identitas akun di Firebase Auth. */
 export async function updateAppUser(
   uid: string,
-  changes: { name: string; role: Exclude<UserRole, 'admin'>; tenantId: string; active: boolean },
+  changes: { name: string; role: UserRole; tenantId: string; active: boolean },
 ) {
   await updateDoc(doc(usersRef, uid), {
     name: changes.name.trim(),

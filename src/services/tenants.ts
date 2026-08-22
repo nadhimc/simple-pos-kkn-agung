@@ -25,6 +25,8 @@ function mapTenant(snapshot: QueryDocumentSnapshot<DocumentData>): Tenant {
     ownerName: data.ownerName ?? '',
     phone: data.phone ?? '',
     address: data.address ?? '',
+    // Dokumen lama dibuat sebelum ada penonaktifan dan tidak punya field ini.
+    active: data.active !== false,
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   }
@@ -59,10 +61,22 @@ export function subscribeTenants(
 export async function createTenant(draft: TenantDraft): Promise<string> {
   const created = await addDoc(tenantsRef, {
     ...draft,
+    active: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
   return created.id
+}
+
+/**
+ * Menutup atau membuka kembali satu unit usaha.
+ *
+ * Nonaktif menghentikan seluruh akses ke datanya lewat `tenantActive()` di
+ * firestore.rules, tanpa menyentuh satu dokumen pun di dalamnya. Mengaktifkan
+ * kembali mengembalikan semuanya seperti semula.
+ */
+export async function setTenantActive(id: string, active: boolean) {
+  await updateDoc(doc(tenantsRef, id), { active, updatedAt: serverTimestamp() })
 }
 
 export async function updateTenant(id: string, draft: TenantDraft) {
@@ -70,10 +84,10 @@ export async function updateTenant(id: string, draft: TenantDraft) {
 }
 
 /**
- * Menghapus dokumen warung TIDAK ikut menghapus subkoleksi di bawahnya:
+ * Menghapus dokumen unit usaha TIDAK ikut menghapus subkoleksi di bawahnya:
  * Firestore tidak mengenal penghapusan berjenjang, dan klien tidak punya cara
- * murah untuk menyapunya. Karena itu aplikasi tidak menyediakan tombol hapus
- * warung, dan fungsi ini hanya dipakai skrip pemeliharaan.
+ * murah untuk menyapunya. Karena itu aplikasi hanya menyediakan penonaktifan,
+ * dan fungsi ini cuma dipakai skrip pemeliharaan.
  */
 export async function deleteTenant(id: string) {
   await deleteDoc(doc(tenantsRef, id))

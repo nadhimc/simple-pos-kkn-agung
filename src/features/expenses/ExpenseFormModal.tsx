@@ -53,7 +53,7 @@ export function ExpenseFormModal({ open, onClose, expense }: ExpenseFormModalPro
     setSaving(true)
     try {
       if (expense) {
-        await updateExpense(tenantId, expense.id, draft)
+        await updateExpense(tenantId, expense.id, draft, expense)
         toast.success('Beban diperbarui.')
       } else {
         await createExpense(tenantId, draft, user?.uid ?? '')

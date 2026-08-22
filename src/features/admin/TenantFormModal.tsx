@@ -8,9 +8,9 @@ import type { Tenant, TenantDraft } from '@/types'
 interface TenantFormModalProps {
   open: boolean
   onClose: () => void
-  /** Null berarti membuat warung baru. */
+  /** Null berarti membuat unit usaha baru. */
   tenant: Tenant | null
-  /** Dipanggil dengan id warung yang baru dibuat, supaya bisa langsung diisi pengguna. */
+  /** Dipanggil dengan id unit usaha yang baru dibuat, supaya bisa langsung diisi pengguna. */
   onCreated?: (tenantId: string) => void
 }
 
@@ -48,7 +48,7 @@ export function TenantFormModal({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     if (!form.name.trim()) {
-      setNameError('Nama warung wajib diisi.')
+      setNameError('Nama unit usaha wajib diisi.')
       return
     }
 
@@ -83,11 +83,11 @@ export function TenantFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={tenant ? 'Ubah warung' : 'Tambah warung'}
+      title={tenant ? 'Ubah unit usaha' : 'Tambah unit usaha'}
       description={
         tenant
-          ? 'Mengubah nama warung ikut mengubah nama yang tercetak di struk.'
-          : 'Warung baru dimulai kosong. Setelah ini, daftarkan orang yang mengelolanya.'
+          ? 'Mengubah namanya ikut mengubah nama yang tercetak di struk pembeli.'
+          : 'Unit usaha baru dimulai kosong. Setelah ini, daftarkan orang yang mengelolanya.'
       }
       footer={
         <>
@@ -95,14 +95,14 @@ export function TenantFormModal({
             Batal
           </Button>
           <Button type="submit" form="tenant-form" loading={saving}>
-            {tenant ? 'Simpan perubahan' : 'Tambah warung'}
+            {tenant ? 'Simpan perubahan' : 'Tambah unit usaha'}
           </Button>
         </>
       }
     >
       <form id="tenant-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         <TextField
-          label="Nama warung"
+          label="Nama unit usaha"
           required
           autoFocus
           helper="Nama ini yang tercetak di struk pembeli."
@@ -118,7 +118,7 @@ export function TenantFormModal({
             onChange={(event) => update('ownerName', event.target.value)}
           />
           <TextField
-            label="Nomor HP warung"
+            label="Nomor HP unit usaha"
             type="tel"
             inputMode="tel"
             placeholder="0851 5665 7853"

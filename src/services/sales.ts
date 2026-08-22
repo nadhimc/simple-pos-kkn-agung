@@ -14,6 +14,7 @@ import {
 import { db } from '@/lib/firebase'
 import { productsRef } from './products'
 import { tenantCollection } from './paths'
+import { addStatsToBatch } from './stats'
 import type { PaymentMethod, Sale, SaleItem } from '@/types'
 
 export function salesRef(tenantId: string) {
@@ -113,6 +114,18 @@ export async function createSale(tenantId: string, input: NewSaleInput): Promise
     })
   }
 
+  // Ringkasan untuk admin ikut batch yang sama: kalau penjualannya gagal,
+  // ringkasannya pun tidak boleh berubah.
+  addStatsToBatch(batch, tenantId, [
+    {
+      at: new Date(),
+      salesCount: 1,
+      revenue: total,
+      grossProfit: total - totalCost,
+      markLastSale: true,
+    },
+  ])
+
   await batch.commit()
 
   return {
@@ -158,6 +171,17 @@ export async function voidSale(
       updatedAt: serverTimestamp(),
     })
   }
+
+  // Dikurangkan dari bulan struknya sendiri, bukan bulan ini: struk bulan lalu
+  // yang dibatalkan hari ini harus mengurangi bulan lalu.
+  addStatsToBatch(batch, tenantId, [
+    {
+      at: sale.createdAt,
+      salesCount: -1,
+      revenue: -sale.total,
+      grossProfit: -sale.grossProfit,
+    },
+  ])
 
   await batch.commit()
 }

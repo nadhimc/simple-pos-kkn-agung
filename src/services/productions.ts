@@ -14,6 +14,7 @@ import {
 import { db } from '@/lib/firebase'
 import { productsRef } from './products'
 import { tenantCollection } from './paths'
+import { addStatsToBatch } from './stats'
 import { blendedCostPrice } from '@/lib/hpp'
 import type { Product, Production, ProductionItem } from '@/types'
 
@@ -126,6 +127,8 @@ export async function createProduction(
     updatedAt: serverTimestamp(),
   })
 
+  addStatsToBatch(batch, tenantId, [{ at: new Date(), productionCount: 1 }])
+
   await batch.commit()
 
   return {
@@ -176,6 +179,8 @@ export async function voidProduction(
       updatedAt: serverTimestamp(),
     })
   }
+
+  addStatsToBatch(batch, tenantId, [{ at: production.createdAt, productionCount: -1 }])
 
   await batch.commit()
 }

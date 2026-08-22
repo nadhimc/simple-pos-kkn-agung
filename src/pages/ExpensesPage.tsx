@@ -40,7 +40,7 @@ export default function ExpensesPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await deleteExpense(tenantId, deleteTarget.id)
+      await deleteExpense(tenantId, deleteTarget)
       toast.success('Beban dihapus.')
       setDeleteTarget(null)
     } catch (caught) {

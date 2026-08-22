@@ -6,6 +6,7 @@ import {
   GaugeIcon,
   PackageIcon,
   ReceiptIcon,
+  ChartLineUpIcon,
   ShoppingCartSimpleIcon,
   StorefrontIcon,
   UsersIcon,
@@ -121,14 +122,20 @@ export const adminNavigation: NavGroup[] = [
     items: [
       {
         path: '/admin',
-        label: 'Warung',
-        description: 'Daftar warung yang memakai layanan ini.',
+        label: 'Unit Usaha',
+        description: 'Daftar unit usaha desa yang memakai sistem ini.',
         icon: StorefrontIcon,
+      },
+      {
+        path: '/admin/ringkasan',
+        label: 'Ringkasan Usaha',
+        description: 'Omzet, laba, dan kegiatan tiap unit usaha per bulan.',
+        icon: ChartLineUpIcon,
       },
       {
         path: '/admin/pengguna',
         label: 'Pengguna',
-        description: 'Daftarkan dan kelola siapa yang boleh membuka tiap warung.',
+        description: 'Daftarkan dan kelola siapa yang boleh membuka tiap unit usaha.',
         icon: UsersIcon,
       },
     ],

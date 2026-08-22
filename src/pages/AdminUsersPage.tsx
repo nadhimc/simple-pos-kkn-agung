@@ -21,7 +21,7 @@ import { formatPhone } from '@/lib/phone'
 import type { AppUser } from '@/types'
 
 /**
- * Siapa saja yang boleh membuka aplikasi ini, dan warung yang mana.
+ * Siapa saja yang boleh membuka sistem ini, dan unit usaha yang mana.
  *
  * Daftar ini adalah gerbang aksesnya: login hanya membuktikan siapa orangnya,
  * baris di sinilah yang menentukan dia boleh masuk. firestore.rules memeriksa
@@ -37,8 +37,8 @@ export default function AdminUsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  // Admin platform ditampilkan terpisah di bawah: mereka tidak punya warung,
-  // dan mencampurnya ke daftar yang berkolom "Warung" hanya membingungkan.
+  // Admin platform ditampilkan terpisah di bawah: mereka tidak punya unit
+  // usaha, dan mencampurnya ke daftar berkolom "Unit usaha" cuma membingungkan.
   const { staff, admins } = useMemo(
     () => ({
       staff: users.filter((item) => item.role !== 'admin'),
@@ -70,13 +70,9 @@ export default function AdminUsersPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Pengguna"
-        description="Login hanya membuktikan siapa orangnya. Baris di daftar inilah yang menentukan dia boleh masuk, dan ke warung mana."
+        description="Login hanya membuktikan siapa orangnya. Baris di daftar inilah yang menentukan dia boleh masuk, dan ke unit usaha mana."
         actions={
-          <Button
-            icon={<PlusIcon size={17} weight="bold" />}
-            onClick={openNew}
-            disabled={tenants.length === 0}
-          >
+          <Button icon={<PlusIcon size={17} weight="bold" />} onClick={openNew}>
             Daftarkan pengguna
           </Button>
         }
@@ -86,8 +82,8 @@ export default function AdminUsersPage() {
 
       {!tenantsLoading && tenants.length === 0 ? (
         <ErrorState
-          title="Belum ada warung"
-          message="Pengguna selalu terikat pada satu warung, jadi tambahkan warungnya dulu di halaman Warung."
+          title="Belum ada unit usaha"
+          message="Pemilik dan kasir selalu terikat pada satu unit usaha, jadi tambahkan unit usahanya dulu di halaman Unit Usaha. Admin platform tetap bisa didaftarkan sekarang."
         />
       ) : null}
 
@@ -97,14 +93,10 @@ export default function AdminUsersPage() {
         ) : staff.length === 0 ? (
           <EmptyState
             icon={UsersIcon}
-            title="Belum ada pengguna warung"
-            description="Daftarkan pemilik warung supaya dia bisa membuka kasirnya sendiri."
+            title="Belum ada pengguna unit usaha"
+            description="Daftarkan pemilik unit usaha supaya dia bisa membuka kasirnya sendiri."
             action={
-              <Button
-                icon={<PlusIcon size={17} weight="bold" />}
-                onClick={openNew}
-                disabled={tenants.length === 0}
-              >
+              <Button icon={<PlusIcon size={17} weight="bold" />} onClick={openNew}>
                 Daftarkan pengguna
               </Button>
             }
@@ -116,7 +108,7 @@ export default function AdminUsersPage() {
                 <tr className="border-b border-border text-left text-xs text-ink-muted">
                   <th className="px-5 py-3 font-medium">Nama</th>
                   <th className="px-5 py-3 font-medium">Masuk lewat</th>
-                  <th className="px-5 py-3 font-medium">Warung</th>
+                  <th className="px-5 py-3 font-medium">Unit usaha</th>
                   <th className="px-5 py-3 font-medium">Peran</th>
                   <th className="px-5 py-3 text-right font-medium">Aksi</th>
                 </tr>
@@ -139,7 +131,7 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-5 py-3.5 text-ink-muted">
                       {tenantsById.get(item.tenantId)?.name ?? (
-                        <span className="text-danger">Warung sudah tidak ada</span>
+                        <span className="text-danger">Unit usaha sudah tidak ada</span>
                       )}
                     </td>
                     <td className="px-5 py-3.5">
@@ -182,28 +174,62 @@ export default function AdminUsersPage() {
           <div className="border-b border-border px-5 py-4">
             <h2 className="text-sm font-semibold text-ink">Admin platform</h2>
             <p className="mt-1 text-xs text-ink-muted">
-              Mengelola warung dan pengguna, dan tidak bisa membaca pembukuan warung
-              mana pun. Admin baru hanya bisa dibuat lewat skrip seed, supaya tidak
-              ada jalan mengangkat diri sendiri dari dalam aplikasi.
+              Mengelola unit usaha dan pengguna, dan sengaja tidak bisa membaca
+              pembukuan unit usaha mana pun. Admin bisa mengangkat admin lain, tapi
+              hanya admin: orang yang belum terdaftar tidak punya pijakan sama
+              sekali, dan tidak ada seorang pun yang bisa menurunkan atau
+              menonaktifkan dirinya sendiri.
             </p>
           </div>
           <ul className="divide-y divide-border">
-            {admins.map((item) => (
-              <li
-                key={item.uid}
-                className="flex items-center justify-between gap-3 px-5 py-3.5"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                  <p className="truncate text-xs text-ink-muted">
-                    {item.email || formatPhone(item.phone)}
-                  </p>
-                </div>
-                {item.uid === currentUser?.uid ? (
-                  <Badge tone="accent">Anda</Badge>
-                ) : null}
-              </li>
-            ))}
+            {admins.map((item) => {
+              const isSelf = item.uid === currentUser?.uid
+              return (
+                <li
+                  key={item.uid}
+                  className="flex items-center justify-between gap-3 px-5 py-3.5"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                      {!item.active ? <Badge tone="danger">Nonaktif</Badge> : null}
+                    </div>
+                    <p className="truncate text-xs text-ink-muted">
+                      {item.email || formatPhone(item.phone)}
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1">
+                    {isSelf ? <Badge tone="accent">Anda</Badge> : null}
+                    <IconButton
+                      label={`Ubah ${item.name}`}
+                      size="sm"
+                      onClick={() => {
+                        setEditing(item)
+                        setFormOpen(true)
+                      }}
+                    >
+                      <PencilSimpleIcon size={18} />
+                    </IconButton>
+                    {/*
+                      Menghapus baris sendiri ditolak Security Rules, jadi
+                      tombolnya pun tidak ditawarkan: lebih baik tidak ada
+                      daripada ada lalu gagal.
+                    */}
+                    {!isSelf ? (
+                      <IconButton
+                        label={`Cabut akses ${item.name}`}
+                        size="sm"
+                        className="hover:text-danger"
+                        onClick={() => setDeleteTarget(item)}
+                      >
+                        <TrashIcon size={18} />
+                      </IconButton>
+                    ) : null}
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </Card>
       ) : null}
