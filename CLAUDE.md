@@ -8,7 +8,7 @@ keduanya bertentangan, `docs/` yang harus diperbarui mengikuti kode.
 
 ## Apa ini
 
-**IPANDAI Jugosari**, Sistem Informasi Pengelolaan Dana Desa Jugosari. Kasir,
+**SIPANDAI Jugosari**, Sistem Informasi Pengelolaan Dana Desa Jugosari. Kasir,
 stok, beban operasional, dan laporan laba rugi untuk unit usaha desa. Satu
 pemasangan melayani banyak unit usaha, tapi tiap unit tetap dipakai satu sampai
 dua orang di satu gerai, bukan multi cabang.

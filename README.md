@@ -1,4 +1,4 @@
-# IPANDAI Jugosari
+# SIPANDAI Jugosari
 
 Sistem Informasi Pengelolaan Dana Desa Jugosari.
 

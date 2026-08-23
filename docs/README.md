@@ -1,4 +1,4 @@
-# Dokumentasi Teknis IPANDAI Jugosari
+# Dokumentasi Teknis SIPANDAI Jugosari
 
 Dokumentasi rancangan dan cara kerja layanan kasir untuk UMKM ini. Ditujukan
 untuk pengembang yang akan meneruskan, mengaudit, atau memperbaiki proyeknya.

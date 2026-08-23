@@ -13,7 +13,7 @@
   kesalahan seperti itu nyaris mustahil disadari dari luar.
 */
 
-const CACHE = 'ipandai-shell-v1'
+const CACHE = 'sipandai-shell-v1'
 const FALLBACK = '/index.html'
 
 self.addEventListener('install', (event) => {
@@ -41,8 +41,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
 
   const url = new URL(request.url)
-  // Firestore, Firebase Auth, reCAPTCHA, dan Google Fonts lewat apa adanya.
-  // Menyentuhnya hanya akan mengacaukan langganan real time dan alur OTP.
+  // Firestore, Firebase Auth, dan Google Fonts lewat apa adanya. Menyentuhnya
+  // hanya akan mengacaukan langganan real time dan alur masuk.
   if (url.origin !== self.location.origin) return
 
   if (request.mode === 'navigate') {

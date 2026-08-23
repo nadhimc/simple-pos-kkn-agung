@@ -85,5 +85,5 @@ export const db = initializeFirestore(app, {
  * konfigurasi per-deployment: menaruhnya di env berarti nama layanan bisa
  * berbeda antara localhost dan produksi tanpa ada yang menyadarinya.
  */
-export const APP_NAME = 'IPANDAI Jugosari'
+export const APP_NAME = 'SIPANDAI Jugosari'
 export const APP_LONG_NAME = 'Sistem Informasi Pengelolaan Dana Desa Jugosari'
