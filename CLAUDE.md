@@ -454,8 +454,12 @@ Tombol Pasang tidak pernah tergambar kecuali browser benar benar menawarkan
 pemasangan, jadi ia hilang sendiri kalau sudah terpasang atau browsernya tidak
 mendukung. Safari di iOS tidak pernah mengirim `beforeinstallprompt`, jadi di
 sana pemasangan hanya lewat menu Bagikan dan tombolnya memang tidak muncul.
-Ikon dirasterisasi dari `public/favicon.svg` yang sama, jadi bentuknya tidak
-pernah berbeda antar ukuran.
+Seluruh ikon lahir dari satu definisi geometri di `scripts/icons.mjs`, dijalankan
+lewat `npm run icons`. Favicon, ikon `any`, ikon maskable Android, dan ikon iOS
+punya aturan bingkai yang berbeda beda; menggambarnya satu per satu berarti cepat
+atau lambat ada satu yang bergeser tanpa ada yang menyadarinya. Lambangnya
+digambar sebagai busur, bukan teks, supaya tidak bergantung pada font yang belum
+tentu ada saat dirasterisasi.
 
 ## Bahasa
 

@@ -88,8 +88,17 @@ Service worker hanya didaftarkan pada build produksi. Di server pengembangan ia
 bersaing dengan hot reload Vite dan menyajikan berkas basi, kesalahan yang
 sangat mahal waktunya untuk ditelusuri.
 
-Ikon dirasterisasi dari `public/favicon.svg` yang sama, sehingga bentuknya tidak
-pernah berbeda antar ukuran. Kalau markanya diubah, ikonnya harus dibuat ulang.
+Seluruh ikon lahir dari satu definisi geometri di `scripts/icons.mjs`. Jalankan
+`npm run icons` setelah mengubah lambangnya, dan kelima berkasnya ditulis ulang
+sekaligus: `favicon.svg`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`,
+dan `apple-touch-icon.png`.
+
+Ketiga bingkainya berbeda karena aturan platformnya berbeda. Varian `any`
+membulatkan sudutnya sendiri sebab browser memasangnya apa adanya. Varian
+maskable persegi penuh dengan lambang yang dikecilkan, sebab Android memotongnya
+jadi lingkaran berdiameter 80% kanvas. Varian iOS persegi penuh tanpa
+pembulatan, sebab iOS memasang masker squircle-nya sendiri dan ikon yang sudah
+dibulatkan akan terlihat dibulatkan dua kali.
 
 ## Mengisi data awal
 
