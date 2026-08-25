@@ -29,12 +29,12 @@
   --ink-subtle: #7c7c86;
   --ink-inverse: #fafafa;
 
-  /* Aksen (emerald-700 di terang supaya teks putih lolos WCAG AA) */
-  --accent: #047857;
-  --accent-hover: #036249;
-  --accent-fg: #f6fefa;
-  --accent-soft: #d6f5e6;
-  --accent-soft-fg: #045c43;
+  /* Aksen (Hijau Cerang Dingin supaya teks putih lolos WCAG AA) */
+  --accent: #008765;
+  --accent-hover: #007053;
+  --accent-fg: #f0fdf9;
+  --accent-soft: #ccf5e7;
+  --accent-soft-fg: #005c43;
 
   /* Status */
   --danger: #b91c1c;
@@ -42,17 +42,18 @@
   --danger-soft: #fde4e4;
   --danger-soft-fg: #96201f;
 
-  --warning: #b45309;
-  --warning-soft: #fbeed0;
-  --warning-soft-fg: #8a4508;
+  /* Gula Merah (Warna gula kelapa hangat) */
+  --warning: #92400e;
+  --warning-soft: #fef3c7;
+  --warning-soft-fg: #78350f;
 
   /* Sidebar selalu gelap di kedua mode: memisahkan navigasi dari area kerja. */
   --sidebar-bg: #17171b;
   --sidebar-border: #2a2a31;
   --sidebar-ink: #a4a4ae;
   --sidebar-ink-active: #fafafa;
-  --sidebar-active-bg: #1f3a30;
-  --sidebar-active-bar: #34d399;
+  --sidebar-active-bg: #0b3329;
+  --sidebar-active-bar: #0edb9e;
 
   /*
     WARNA GRAFIK
@@ -64,7 +65,7 @@
     chroma, keterpisahan buta warna, dan kontras terhadap permukaan masing
     masing mode. Jangan mengganti nilainya tanpa menjalankan validator lagi.
   */
-  --chart-1: #047857;
+  --chart-1: #008765;
   --chart-2: #2a78d6;
   --chart-grid: #e6e6ea;
   --chart-axis: #b8b8c0;
@@ -93,30 +94,32 @@
 
   /* Aksen dinaikkan ke emerald-500: hierarki yang menonjol di terang harus
      tetap menonjol di gelap. Teksnya jadi gelap agar kontras tetap lolos. */
-  --accent: #10b981;
-  --accent-hover: #34d399;
-  --accent-fg: #06231a;
-  --accent-soft: #16332a;
-  --accent-soft-fg: #6ee7b7;
+  /* Aksen dinaikkan ke Hijau Cerang Dingin terang */
+  --accent: #0edb9e;
+  --accent-hover: #0bbf8a;
+  --accent-fg: #012b1e;
+  --accent-soft: #07382b;
+  --accent-soft-fg: #4ef2c3;
 
   --danger: #ef4444;
   --danger-fg: #2a0d0d;
   --danger-soft: #3a1b1b;
   --danger-soft-fg: #fca5a5;
 
+  /* Gula Merah di mode gelap */
   --warning: #f59e0b;
-  --warning-soft: #3a2a12;
+  --warning-soft: #3a2807;
   --warning-soft-fg: #fcd34d;
 
   --sidebar-bg: #16161a;
   --sidebar-border: #26262d;
   --sidebar-ink: #9d9da7;
   --sidebar-ink-active: #fafafa;
-  --sidebar-active-bg: #1c342b;
-  --sidebar-active-bar: #34d399;
+  --sidebar-active-bg: #082c23;
+  --sidebar-active-bar: #0edb9e;
 
   /* Langkah gelap dipilih ulang untuk permukaan gelap, bukan sekadar dibalik. */
-  --chart-1: #0da271;
+  --chart-1: #0edb9e;
   --chart-2: #3987e5;
   --chart-grid: #2b2b33;
   --chart-axis: #4a4a55;

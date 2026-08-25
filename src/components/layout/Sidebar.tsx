@@ -3,6 +3,7 @@ import { CaretLeftIcon, XIcon } from '@phosphor-icons/react'
 import { cn } from '@/lib/cn'
 import { navigationFor } from './navigation'
 import { BrandMark } from './BrandMark'
+import { VillageLandscape } from './VillageLandscape'
 
 interface SidebarProps {
   /** Nama warung yang sedang dibuka, atau nama layanan untuk admin. */
@@ -106,6 +107,13 @@ export function Sidebar({
 
         <NavList isAdmin={isAdmin} collapsed={collapsed} />
 
+        {/* Dekorasi pedesaan di sidebar ketika melebar (expanded) */}
+        {!collapsed ? (
+          <div className="shrink-0 px-3 pb-4 select-none">
+            <VillageLandscape tone="dark" className="border-sidebar-border bg-white/5 opacity-80" />
+          </div>
+        ) : null}
+
         <div className="shrink-0 border-t border-sidebar-border p-3">
           <button
             type="button"
@@ -149,6 +157,10 @@ export function Sidebar({
               </button>
             </div>
             <NavList isAdmin={isAdmin} collapsed={false} onNavigate={onCloseMobile} />
+            {/* Dekorasi pedesaan di drawer mobile */}
+            <div className="mt-auto shrink-0 p-4 select-none">
+              <VillageLandscape tone="dark" className="border-sidebar-border bg-white/5 opacity-80" />
+            </div>
           </aside>
         </div>
       ) : null}

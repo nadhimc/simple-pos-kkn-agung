@@ -5,6 +5,7 @@ import { APP_LONG_NAME, APP_NAME } from '@/lib/firebase'
 import { Button, ErrorState, TextField } from '@/components/ui'
 import { BrandMark } from '@/components/layout/BrandMark'
 import { InstallAppButton } from '@/components/layout/InstallAppButton'
+import { VillageLandscape } from '@/components/layout/VillageLandscape'
 
 /**
  * Halaman ini tidak memeriksa sesi sama sekali. Pemantulan bagi pengguna yang
@@ -67,7 +68,7 @@ export default function LoginPage() {
   return (
     <div className="grid min-h-[100dvh] lg:grid-cols-[1.1fr_1fr]">
       {/* Panel merek. Disembunyikan di layar kecil supaya form langsung terlihat. */}
-      <aside className="hidden flex-col justify-between bg-sidebar px-12 py-12 lg:flex">
+      <aside className="hidden flex-col justify-between bg-gradient-to-br from-[#0a261f] via-[#0e1c18] to-sidebar px-12 py-12 lg:flex">
         <BrandMark storeName={APP_NAME} tone="dark" />
 
         <div className="max-w-md">
@@ -78,6 +79,8 @@ export default function LoginPage() {
             Catat penjualan, pantau stok, dan lihat untung rugi tiap unit usaha
             desa tanpa perlu menutup buku manual di akhir bulan.
           </p>
+
+          <VillageLandscape tone="dark" className="mt-8 border-sidebar-border bg-white/5 opacity-90 shadow-e2" />
         </div>
 
         <dl className="grid grid-cols-3 gap-6 border-t border-sidebar-border pt-6">
